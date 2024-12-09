@@ -1,0 +1,353 @@
+#! /usr/bin/env tclsh
+#
+# patcl - a simple password manager.
+# This program has been closely translated from POSIX shell to Tcl.
+# It requires a *nix operating system with GPG installed.
+# Original repository: https://github.com/dylanaraps/pash (archived).
+#
+# ==============================================================================
+#
+## The MIT License (MIT)
+#
+# Copyright (c) 2016-2019 Dylan Araps
+# Copyright (c) 2024 D. Bohdan
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+#
+# ==============================================================================
+
+#!/usr/bin/env tclsh
+
+package require Tcl 8.6 9
+
+namespace eval ::patcl {}
+
+proc ::patcl::from_env {varName default} {
+    set value $default
+    set env [array get ::env]
+    if {[dict exists $env $varName]} {
+        set value [dict get $env $varName]
+    }
+
+    uplevel 1 [list variable $varName $value]
+}
+
+namespace eval ::patcl {
+    variable GPG {}
+    variable HOME [expr {
+        [string match 8.* [info patchlevel]]
+        ? [file normalize ~]
+        : [file home]
+    }]
+    variable VERSION 0.1.0
+
+    from_env XDG_DATA_HOME [file join $HOME .local share]
+    from_env PATCL_CLIP {xclip -sel c}
+    from_env PATCL_DIR [file join $XDG_DATA_HOME patcl]
+    from_env PATCL_KEYID {}
+    from_env PATCL_LENGTH 50
+    from_env PATCL_PATTERN _A-Z-a-z-0-9
+    from_env PATCL_TIMEOUT 15
+}
+
+proc ::patcl::add name {
+    variable GPG
+    variable PATCL_KEYID
+    variable PATCL_LENGTH
+    variable PATCL_PATTERN
+
+    if {[yn {Generate a password?}]} {
+        # Generate a password by reading '/dev/urandom' and translating the
+        # random bytes into a configurable character set.
+        #
+        # Regarding usage of '/dev/urandom' instead of '/dev/random'.
+        # See: https://www.2uo.de/myths-about-urandom
+        set pass {}
+        try {
+            set ch [open /dev/urandom rb]
+            while {[string length $pass] < $PATCL_LENGTH} {
+                    set c [read $ch 1]
+                    try {
+                        if {![string match \[$PATCL_PATTERN\] $c]} {
+                            continue
+                        }
+                    } on error _ {
+                        die {Invalid password character pattern}
+                    }
+                    append pass $c
+                }
+        } on error e {
+            die $e
+        } finally {
+            catch {
+                close $ch
+            }
+        }
+    } else {
+        # 'sread()' is a simple wrapper function around 'gets'
+        # to prevent user input from being printed to the terminal.
+        set pass [sread {Enter password}]
+        set pass2 [sread {Enter password (again)}]
+
+        if {$pass ne $pass2} {
+            die {Passwords do not match}
+        }
+    }
+
+    if {$pass eq {}} {
+        die {Empty password}
+    }
+
+    set args -c
+    if {$PATCL_KEYID ne {}} {
+        set args [list --trust-model always -aer $PATCL_KEYID]
+    }
+
+    # Use 'gpg' to store the password in an encrypted file.
+    exec $GPG {*}$args -o $name.gpg << $pass >@ stdout 2>@ stderr
+    puts "Saved '$name' to the store."
+}
+
+proc ::patcl::del name {
+    if {![yn "Delete pass file '$name'?"]} return
+
+    file delete $name.gpg
+
+    # Remove empty parent directories of a password
+    # entry. It's fine if this fails as it means that
+    # another entry also lives in the same directory.
+    catch {
+        file delete [file dirname $name]
+    }
+}
+
+proc ::patcl::show name {
+    variable GPG
+
+    exec $GPG -dq $name.gpg >@ stdout 2>@ stderr
+}
+
+proc ::patcl::copy name {
+    variable GPG
+    variable PATCL_CLIP
+    variable PATCL_TIMEOUT
+
+    set timeout $PATCL_TIMEOUT
+    if {[string tolower $timeout] eq {off}} {
+        set timeout 0
+    }
+
+    # Validate the timeout. No infinities or NaN.
+    if {
+        ![string is double -strict $timeout]
+        || $timeout == -inf
+        || $timeout == inf
+        || $timeout != $timeout
+    } {
+        die {Timeout isn't a number}
+    }
+
+    if {$timeout > 0} {
+        puts "Clearing clipboard in $timeout seconds."
+    }
+
+    exec $GPG -dq $name.gpg | {*}$PATCL_CLIP >@ stdout 2>@ stderr
+
+    # Wait for the password timeout and clear the clipboard.
+    if {$timeout > 0} {
+        after [expr {int($timeout * 1000)}]
+        exec {*}$PATCL_CLIP << {} >@ stdout 2>@ stderr
+    }
+}
+
+proc ::patcl::list_all {} {
+    foreach f [split [exec find . -type f -name *.gpg] \n] {
+        puts [file rootname $f]
+    }
+}
+
+proc ::patcl::tree {} {
+    try {
+        exec tree
+    } on error _ {
+        die {'tree' command not found}
+    }
+
+    puts [string map {.gpg {}} [exec tree --noreport]]
+}
+
+proc ::patcl::yn prompt {
+    puts -nonewline "$prompt \[y/n\]: "
+
+    # Enable raw input to allow for a single byte to be read from
+    # stdin without needing to wait for the user to press Return.
+    exec stty -icanon >@ stdout 2>@ stderr
+
+    set answer [read stdin 1]
+
+    # Disable raw input, leaving the terminal how we *should*
+    # have found it.
+    exec stty icanon >@ stdout 2>@ stderr
+
+    puts {}
+
+    # Handle the answer here directly, enabling this function's
+    # return status to be used in place of checking for '[yY]'
+    # throughout this program.
+    return [expr {$answer in {y Y}}]
+}
+
+proc ::patcl::sread prompt {
+    puts -nonewline "$prompt: "
+
+    # Disable terminal printing while the user inputs their
+    # password.
+    exec stty -echo >@ stdout 2>@ stderr
+    set input [gets stdin]
+    exec stty echo >@ stdout 2>@ stderr
+
+    puts {}
+
+    return $input
+}
+
+proc ::patcl::die message {
+    puts stderr "error: $message"
+    exit 1
+}
+
+proc ::patcl::usage {} {
+    variable HOME
+    variable PATCL_LENGTH
+    variable PATCL_LENGTH
+    variable PATCL_PATTERN
+    variable PATCL_DIR
+    variable PATCL_CLIP
+    variable PATCL_TIMEOUT
+    variable VERSION
+
+    set dir [string map [list $HOME ~] $PATCL_DIR]
+
+    puts "patcl $VERSION - simple password manager."
+    puts [subst -nobackslashes -nocommands {
+=> [a]dd  [name] - Create a new password entry.
+=> [c]opy [name] - Copy entry to the clipboard.
+=> [d]el  [name] - Delete a password entry.
+=> [l]ist        - List all entries.
+=> [s]how [name] - Show password for an entry.
+=> [t]ree        - List all entries in a tree.
+
+Using a key pair:  export PATCL_KEYID=XXXXXXXX
+Password length:   export PATCL_LENGTH=$PATCL_LENGTH
+Password pattern:  export PATCL_PATTERN=$PATCL_PATTERN
+Store location:    export PATCL_DIR=$dir
+Clipboard tool:    export PATCL_CLIP='$PATCL_CLIP'
+Clipboard timeout: export PATCL_TIMEOUT=$PATCL_TIMEOUT ('off' to disable)}]
+
+    exit 0
+}
+
+proc ::patcl::main argv {
+    variable GPG
+    variable PATCL_DIR
+
+    # Look for both 'gpg' and 'gpg2',
+    # preferring 'gpg2' if it is available.
+    set GPG [auto_execok gpg2]
+    if {$GPG eq {}} {
+        set GPG [auto_execok gpg]
+    }
+    if {$GPG eq {}} {
+        die {GPG not found}
+    }
+
+    try {
+        file mkdir $PATCL_DIR
+    } on error _ {
+        die {Couldn't create password directory}
+    }
+
+    try {
+        cd $PATCL_DIR
+    } on error _ {
+        die {Can't access password directory}
+    }
+
+    set command [lindex $argv 0]
+    set name {}
+    if {[llength $argv] >= 2} {
+        set name [lindex $argv 1]
+    }
+
+    if {[string match {[acds]*} $command] && $name eq {}} {
+        die {Missing [name] argument}
+    }
+
+    if {[string match {[cds]*} $command] && ![file exists $name.gpg]} {
+        die "Pass file '$name' doesn't exist"
+    }
+
+    if {[string match a* $command] && [file exists $name.gpg]} {
+        die "Pass file '$name' already exists"
+    }
+
+    if {[string match *../* $name]} {
+        die {Category went out of bounds}
+    }
+
+    if {[string match /* $name]} {
+        die {Category can't start with '/'}
+    }
+
+    if {[string match */* $name]} {
+        set dir [file dirname $name]
+        try {
+            file mkdir $dir
+        } on error _ {
+            die "Couldn't create category '$name'"
+        }
+    }
+
+    # Set 'GPG_TTY' to the current 'TTY' if it
+    # is unset. Fixes a somewhat rare `gpg` issue.
+    if {![info exists ::env(GPG_TTY)]} {
+        set ::env(GPG_TTY) tty
+    }
+
+    try {
+        switch -glob -- $command {
+            a* { ::patcl::add  $name }
+            c* { ::patcl::copy $name }
+            d* { ::patcl::del  $name }
+            s* { ::patcl::show $name }
+            l* { ::patcl::list_all }
+            t* { ::patcl::tree }
+            default usage
+        }
+    } finally {
+        # Ensure that we leave the terminal in a usable
+        # state on exit or Ctrl+C.
+        exec stty echo icanon >@ stdout 2>@ stderr
+    }
+}
+
+# If this is the main script...
+if {[info exists argv0] && ([file tail [info script]] eq [file tail $argv0])} {
+    ::patcl::main $argv
+}
