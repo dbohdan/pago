@@ -35,6 +35,7 @@
 #!/usr/bin/env tclsh
 
 package require Tcl 8.6 9
+# No Tcllib. Don't add it as a dependency.
 
 namespace eval ::patcl {}
 
