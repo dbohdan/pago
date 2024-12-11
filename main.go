@@ -550,28 +550,61 @@ func wrapForTerm(s string) string {
 
 func usage(dataDir, home string) {
 	dataDir = strings.ReplaceAll(dataDir, home, "~")
+	me := filepath.Base(os.Args[0])
 
-	message := fmt.Sprintf(`pago %s - simple password manager.
+	message := fmt.Sprintf(`Usage: %s <command> [<name>]
 
-=> [a]dd  [name] - Create a new password entry.
-=> [c]opy [name] - Copy entry to the clipboard.
-=> [d]el  [name] - Delete a password entry.
-=> [g]enerate    - Generate a password.
-=> [l]ist        - List all entries.
-=> [s]how [name] - Show password for an entry.
-=> [t]ree        - List all entries in a tree.
+A simple password manager.
 
-Password length:   PAGO_LENGTH=%s
-Password pattern:  PAGO_PATTERN='%s'
-Store location:    PAGO_DIR=%s
-Clipboard tool:    PAGO_CLIP='%s'
-Clipboard timeout: PAGO_TIMEOUT=%s ('off' to disable)
+Commands:
+  a, add <name>
+          Create new password entry
+
+  c, copy <name>
+          Copy entry to clipboard
+
+  d, del, delete <name>
+          Delete password entry
+
+  h, help
+          Print this message and exit
+
+  g, gen, generate
+          Generate and print password
+
+  l, list
+          List all entries
+
+  s, show <name>
+          Show password for entry
+
+  t, tree
+          List all entries as tree
+
+  v, version
+          Print version number and exit
+
+Environment variables:
+  PAGO_CLIP='%s'
+          Clipboard tool
+
+  PAGO_DIR=%s
+          Store location
+
+  PAGO_LENGTH=%s
+          Password length
+
+  PAGO_PATTERN='%s'
+          Password pattern (regular expression)
+
+  PAGO_TIMEOUT=%s
+          Clipboard timeout ('off' to disable)
 `,
-		version,
+		me,
+		defaultClip,
+		dataDir,
 		defaultLength,
 		defaultPattern,
-		dataDir,
-		defaultClip,
 		defaultTimeout,
 	)
 
@@ -750,6 +783,11 @@ func main() {
 		}
 
 		fmt.Print(tree)
+
+	case "v", "version":
+		requireArgs(command, 0, 0)
+
+		fmt.Println(version)
 
 	default:
 		exitWithWrongUsage("unknown command: %v", command)
