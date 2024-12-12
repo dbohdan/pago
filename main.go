@@ -1,37 +1,10 @@
-// pago - a simple password manager.
+// pago - a command-line password manager.
 //
-// This program is a fork of pash translated to Go
-// and switched from GPG to age public-key encryption.
-// It requires a *nix operating system with age installed.
-// See https://github.com/FiloSottile/age.
+// This program is a heavily modified fork of pash.
 // Original repository: https://github.com/dylanaraps/pash (archived).
 //
-// ==============================================================================
-//
-// The MIT License (MIT)
-//
-// Copyright (c) 2016-2019 Dylan Araps
-// Copyright (c) 2024 D. Bohdan
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-//
-// ==============================================================================
+// License: MIT.
+// See the file `LICENSE`.
 
 package main
 
@@ -64,34 +37,28 @@ import (
 
 type CLI struct {
 	// Global options.
-	Dir     string `env:"PAGO_DIR" default:"${defaultDataDir}" help:"Store location"`
-	Length  int    `env:"PAGO_LENGTH" default:"20" help:"Password length"`
-	Pattern string `env:"PAGO_PATTERN" default:"[A-Za-z0-9]" help:"Password pattern (regular expression)"`
-	Socket  string `env:"PAGO_SOCK" default:"${defaultSocket}" help:"Agent socket path (blank to disable)"`
-	Timeout int    `env:"PAGO_TIMEOUT" default:"30" help:"Clipboard timeout ('off' to disable)"`
+	Dir    string `short:"d" env:"${dataDirEnv}" default:"${defaultDataDir}" help:"Store location"`
+	Socket string `short:"s" env:"${socketEnv}" default:"${defaultSocket}" help:"Agent socket path (blank to disable)"`
 
 	// Commands.
 	Add      AddCmd      `cmd:"" aliases:"a" help:"Create new password entry"`
 	Agent    AgentCmd    `cmd:"" hidden:"" help:"Run the agent process"`
-	Copy     CopyCmd     `cmd:"" aliases:"c" help:"Copy entry to clipboard"`
+	Clip     ClipCmd     `cmd:"" aliases:"c" help:"Copy entry to clipboard"`
 	Delete   DeleteCmd   `cmd:"" aliases:"d,del" help:"Delete password entry"`
+	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
-	List     ListCmd     `cmd:"" aliases:"l" help:"List all entries"`
-	Show     ShowCmd     `cmd:"" aliases:"s" help:"Show password for entry"`
-	Tree     TreeCmd     `cmd:"" aliases:"t" help:"List all entries as tree"`
+	Init     InitCmd     `cmd:"" help:"Create a new passwore store"`
+	Show     ShowCmd     `cmd:"" aliases:"s" help:"Show password for entry or list entries"`
 	Version  VersionCmd  `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
 }
 
 type Config struct {
-	AgentSocket string
-	DataDir     string
-	Home        string
-	Identities  string
-	Length      int
-	Pattern     regexp.Regexp
-	Recipients  string
-	Store       string
-	Timeout     time.Duration
+	DataDir    string
+	Home       string
+	Identities string
+	Recipients string
+	Socket     string
+	Store      string
 }
 
 const (
@@ -99,13 +66,19 @@ const (
 	agentSocketPath = "socket"
 	defaultLength   = "20"
 	defaultPattern  = "[A-Za-z0-9]"
-	defaultTimeout  = "30"
 	dirPerms        = 0o700
+	filePerms       = 0o600
 	maxStepsPerChar = 500
-	socketPerms     = 0o600
 	storePath       = "store"
-	version         = "0.5.0"
+	version         = "0.6.0"
 	waitForSocket   = 3 * time.Second
+
+	agentPasswordEnv = "PAGO_AGENT_PASSWORD"
+	dataDirEnv       = "PAGO_DATA_DIR"
+	socketEnv        = "PAGO_SOCK"
+	lengthEnv        = "PAGO_LENGTH"
+	patternEnv       = "PAGO_PATTERN"
+	timeoutEnv       = "PAGO_TIMEOUT"
 )
 
 var (
@@ -115,21 +88,34 @@ var (
 
 type AddCmd struct {
 	Name string `arg:"" help:"Name of the password entry"`
+
+	Length  int    `short:"l" env:"${lengthEnv}" default:"${defaultLength}" help:"Password length"`
+	Pattern string `short:"p" env:"${patternEnv}" default:"${defaultPattern}" help:"Password pattern (regular expression)"`
+
+	Input  bool `short:"i" help:"Input the password manually" xor:"mode"`
+	Random bool `short:"r" help:"Generate a random password" xor:"mode"`
 }
 
 func (cmd *AddCmd) Run(config *Config) error {
 	if passwordExists(config.Store, cmd.Name) {
-		return fmt.Errorf("password file already exists: %v", cmd.Name)
+		return fmt.Errorf("entry already exists: %v", cmd.Name)
 	}
 
-	generate, err := askYesNo("Generate a password?")
-	if err != nil {
-		return err
+	var generate bool
+	var err error
+
+	if cmd.Input || cmd.Random {
+		generate = cmd.Random
+	} else {
+		generate, err = askYesNo("Generate a password?")
+		if err != nil {
+			return err
+		}
 	}
 
 	password := ""
 	if generate {
-		password, err = generatePassword(config.Pattern, config.Length)
+		password, err = generatePassword(cmd.Pattern, cmd.Length)
 	} else {
 		password, err = readNewPassword()
 	}
@@ -147,24 +133,26 @@ func (cmd *AddCmd) Run(config *Config) error {
 type AgentCmd struct{}
 
 func (cmd *AgentCmd) Run(config *Config) error {
-	agentPassword := os.Getenv("PAGO_AGENT_PASSWORD")
+	agentPassword := os.Getenv(agentPasswordEnv)
 	if agentPassword == "" {
-		return fmt.Errorf("'PAGO_AGENT_PASSWORD' environment variable not set")
+		return fmt.Errorf("`%v` environment variable not set", agentPasswordEnv)
 	}
 
-	return runAgent(config.AgentSocket, agentPassword)
+	return runAgent(config.Socket, agentPassword)
 }
 
-type CopyCmd struct {
+type ClipCmd struct {
 	Name string `arg:"" help:"Name of the password entry"`
+
+	Timeout int `short:"t" env:"${timeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable)"`
 }
 
-func (cmd *CopyCmd) Run(config *Config) error {
+func (cmd *ClipCmd) Run(config *Config) error {
 	if !passwordExists(config.Store, cmd.Name) {
-		return fmt.Errorf("password file doesn't exist: %v", cmd.Name)
+		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
 	}
 
-	password, err := decryptPassword(config.AgentSocket, config.Identities, config.Store, cmd.Name)
+	password, err := decryptPassword(config.Socket, config.Identities, config.Store, cmd.Name)
 	if err != nil {
 		return err
 	}
@@ -174,43 +162,75 @@ func (cmd *CopyCmd) Run(config *Config) error {
 	}
 
 	clipboard.Write(clipboard.FmtText, []byte(password))
-	fmt.Println("Password copied to clipboard.")
 
-	if config.Timeout > 0 {
-		time.Sleep(config.Timeout)
+	timeout := time.Duration(cmd.Timeout) * time.Second
+	if timeout > 0 {
+		ending := "s"
+		if cmd.Timeout%10 == 1 && cmd.Timeout%100 != 11 {
+			ending = ""
+		}
+		fmt.Printf("Clearing clipboard in %v second%s\n", cmd.Timeout, ending)
+
+		time.Sleep(timeout)
 		clipboard.Write(clipboard.FmtText, []byte(""))
 	}
+
 	return nil
 }
 
 type DeleteCmd struct {
 	Name string `arg:"" help:"Name of the password entry"`
+
+	Force bool `short:"f" help:"Do not ask to confirm"`
 }
 
 func (cmd *DeleteCmd) Run(config *Config) error {
 	if !passwordExists(config.Store, cmd.Name) {
-		return fmt.Errorf("password file doesn't exist: %v", cmd.Name)
+		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
 	}
 
-	return deletePassword(config.Store, cmd.Name)
-}
+	var choice bool
+	var err error
 
-type GenerateCmd struct{}
-
-func (cmd *GenerateCmd) Run(config *Config) error {
-	password, err := generatePassword(config.Pattern, config.Length)
-	if err != nil {
-		return err
+	if cmd.Force {
+		choice = true
+	} else {
+		if choice, err = askYesNo(fmt.Sprintf("Delete entry '%s'?", cmd.Name)); !choice || err != nil {
+			return err
+		}
 	}
-	fmt.Println(password)
+
+	file := passwordFile(config.Store, cmd.Name)
+	if err := os.Remove(file); err != nil {
+		return fmt.Errorf("failed to delete entry: %v", err)
+	}
+
+	// Try to remove empty parent directories.
+	dir := filepath.Dir(file)
+	for dir != config.Store {
+		err := os.Remove(dir)
+		if err != nil {
+			// The directory is not empty or there was another error.
+			break
+		}
+		dir = filepath.Dir(dir)
+	}
+
 	return nil
 }
 
-type ListCmd struct{}
+type FindCmd struct {
+	Pattern string `arg:"" default:"" help:"Pattern to search for (regular expression)"`
+}
 
-func (cmd *ListCmd) Run(config *Config) error {
+func (cmd *FindCmd) Run(config *Config) error {
+	pattern, err := regexp.Compile(cmd.Pattern)
+	if err != nil {
+		return fmt.Errorf("failed to compile regular expression: %v", err)
+	}
+
 	list, err := listFiles(config.Store, func(name string, info os.FileInfo) (bool, string) {
-		if info.IsDir() || !strings.HasSuffix(info.Name(), ageExt) || strings.HasPrefix(info.Name(), ".") {
+		if info.IsDir() || !strings.HasSuffix(name, ageExt) {
 			return false, ""
 		}
 
@@ -219,32 +239,101 @@ func (cmd *ListCmd) Run(config *Config) error {
 		displayName = strings.TrimPrefix(displayName, "/")
 		displayName = strings.TrimSuffix(displayName, ageExt)
 
+		if !pattern.MatchString(displayName) {
+			return false, ""
+		}
+
 		return true, displayName
 	})
 	if err != nil {
-		return fmt.Errorf("failed to list password files: %v", err)
+		return fmt.Errorf("failed to search entries: %v", err)
 	}
 
 	fmt.Println(strings.Join(list, "\n"))
 	return nil
 }
 
-type ShowCmd struct {
-	Name string `arg:"" help:"Name of the password entry"`
+type GenerateCmd struct {
+	Length  int    `short:"l" env:"${lengthEnv}" default:"${defaultLength}" help:"Password length"`
+	Pattern string `short:"p" env:"${patternEnv}" default:"${defaultPattern}" help:"Password pattern (regular expression)"`
 }
 
-func (cmd *ShowCmd) Run(config *Config) error {
-	if !passwordExists(config.Store, cmd.Name) {
-		return fmt.Errorf("password file doesn't exist: %v", cmd.Name)
+func (cmd *GenerateCmd) Run(config *Config) error {
+	password, err := generatePassword(cmd.Pattern, cmd.Length)
+	if err != nil {
+		return err
+	}
+	fmt.Println(password)
+	return nil
+}
+
+type InitCmd struct{}
+
+func (cmd *InitCmd) Run(config *Config) error {
+	if pathExists(config.Identities) {
+		return fmt.Errorf("identities file already exists")
+	}
+	if pathExists(config.Recipients) {
+		return fmt.Errorf("recipients file already exists")
 	}
 
-	return showPassword(config.AgentSocket, config.Identities, config.Store, cmd.Name)
+	identity, err := age.GenerateX25519Identity()
+	if err != nil {
+		return fmt.Errorf("failed to generate identity: %w", err)
+	}
+
+	// Create a buffer for an armored, encrypted identity.
+	var buf bytes.Buffer
+	armorWriter := armor.NewWriter(&buf)
+
+	password, err := readNewPassword()
+	if err != nil {
+		return fmt.Errorf("failed to read password: %v", err)
+	}
+
+	recip, err := age.NewScryptRecipient(password)
+	if err != nil {
+		return fmt.Errorf("failed to create scrypt recipient: %w", err)
+	}
+
+	w, err := age.Encrypt(armorWriter, recip)
+	if err != nil {
+		return fmt.Errorf("failed to create encrypted writer: %w", err)
+	}
+
+	_, err = w.Write([]byte(identity.String()))
+	if err != nil {
+		return fmt.Errorf("failed to write identity: %w", err)
+	}
+
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to close encrypted writer: %w", err)
+	}
+	if err := armorWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close armor writer: %w", err)
+	}
+
+	if err := os.MkdirAll(config.Store, dirPerms); err != nil {
+		return fmt.Errorf("failed to create store directory: %v", err)
+	}
+
+	if err := os.WriteFile(config.Identities, buf.Bytes(), filePerms); err != nil {
+		return fmt.Errorf("failed to write identities file: %w", err)
+	}
+
+	if err := os.WriteFile(config.Recipients, []byte(identity.Recipient().String()+"\n"), filePerms); err != nil {
+		return fmt.Errorf("failed to write recipients file: %w", err)
+	}
+
+	return nil
 }
 
-type TreeCmd struct{}
+type ShowCmd struct {
+	Name string `arg:"" optional:"" help:"Name of the password entry"`
+}
 
-func (cmd *TreeCmd) Run(config *Config) error {
-	tree, err := dirTree(config.Store, func(name string, info os.FileInfo) (bool, string) {
+func printStoreTree(store string) error {
+	tree, err := dirTree(store, func(name string, info os.FileInfo) (bool, string) {
 		if strings.HasPrefix(info.Name(), ".") {
 			return false, ""
 		}
@@ -264,6 +353,30 @@ func (cmd *TreeCmd) Run(config *Config) error {
 	return nil
 }
 
+func (cmd *ShowCmd) Run(config *Config) error {
+	if cmd.Name == "" {
+		return printStoreTree(config.Store)
+	}
+
+	if !passwordExists(config.Store, cmd.Name) {
+		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
+	}
+
+	password, err := decryptPassword(
+		config.Socket,
+		config.Identities,
+		config.Store,
+		cmd.Name,
+	)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(password)
+
+	return nil
+}
+
 type VersionCmd struct{}
 
 func (cmd *VersionCmd) Run(config *Config) error {
@@ -278,28 +391,19 @@ func initConfig(cli *CLI) (*Config, error) {
 		return nil, fmt.Errorf("failed to get home directory: %v", err)
 	}
 
-	pattern, err := regexp.Compile(cli.Pattern)
-	if err != nil {
-		return nil, fmt.Errorf("invalid pattern: %v", err)
-	}
-
 	store := filepath.Join(cli.Dir, storePath)
 
 	config := Config{
-		AgentSocket: cli.Socket,
-		DataDir:     cli.Dir,
-		Home:        home,
-		Identities:  filepath.Join(cli.Dir, "identities"),
-		Length:      cli.Length,
-		Pattern:     *pattern,
-		Recipients:  filepath.Join(store, ".age-recipients"),
-		Store:       store,
-		Timeout:     time.Duration(cli.Timeout) * time.Second,
+		DataDir:    cli.Dir,
+		Home:       home,
+		Identities: filepath.Join(cli.Dir, "identities"),
+		Recipients: filepath.Join(store, ".age-recipients"),
+		Socket:     cli.Socket,
+		Store:      store,
 	}
 
 	return &config, nil
 }
-
 
 func printError(format string, value any) {
 	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", value)
@@ -352,7 +456,12 @@ func askYesNo(prompt string) (bool, error) {
 }
 
 // Generate a random password where each character matches a regular expression.
-func generatePassword(pattern regexp.Regexp, length int) (string, error) {
+func generatePassword(pattern string, length int) (string, error) {
+	regexpPattern, err := regexp.Compile(pattern)
+	if err != nil {
+		return "", fmt.Errorf("failed to compile regular expression: %v", err)
+	}
+
 	var password strings.Builder
 
 	steps := 0
@@ -364,7 +473,7 @@ func generatePassword(pattern regexp.Regexp, length int) (string, error) {
 		}
 
 		char := string(b[0])
-		if pattern.MatchString(char) {
+		if regexpPattern.MatchString(char) {
 			password.WriteString(char)
 		}
 
@@ -582,7 +691,7 @@ func tryAgent(socketPath string, data []byte) (string, error) {
 	// Send the decrypt command.
 	cmd := client.Do(ctx, client.B().Arbitrary("DECRYPT", valkey.BinaryString(data)).Build())
 	if err := cmd.Error(); err != nil {
-		return "", fmt.Errorf("decrypt command failed: %v", err)
+		return "", fmt.Errorf("DECRYPT command failed: %v", err)
 	}
 
 	result, err := cmd.ToString()
@@ -600,7 +709,7 @@ func checkSocketSecurity(socketPath string) error {
 	}
 
 	// Check socket permissions.
-	if info.Mode().Perm() != socketPerms {
+	if info.Mode().Perm() != filePerms {
 		return fmt.Errorf("incorrect socket permissions: %v", info.Mode().Perm())
 	}
 
@@ -642,7 +751,7 @@ func startAgent(agentSocket, password string) error {
 	}
 
 	cmd := exec.Command(exe, "agent")
-	cmd.Env = append(os.Environ(), "PAGO_AGENT_PASSWORD="+password)
+	cmd.Env = append(os.Environ(), agentPasswordEnv+"="+password, socketEnv+"="+agentSocket)
 
 	// Start the process in the background.
 	if err := cmd.Start(); err != nil {
@@ -724,7 +833,7 @@ func runAgent(agentSocket string, password string) error {
 			return
 		}
 
-		if err := os.Chmod(agentSocket, socketPerms); err != nil {
+		if err := os.Chmod(agentSocket, filePerms); err != nil {
 			exitWithError("failed to set permissions on agent socket: %v", err)
 		}
 	}()
@@ -761,40 +870,6 @@ func decryptPassword(agentSocket, identities, passwordStore, name string) (strin
 	}
 
 	return string(password), nil
-}
-
-// Delete a password entry and its empty parent directories.
-func deletePassword(passwordStore, name string) error {
-	if choice, err := askYesNo(fmt.Sprintf("Delete pass file '%s'?", name)); !choice || err != nil {
-		return err
-	}
-
-	file := passwordFile(passwordStore, name)
-	if err := os.Remove(file); err != nil {
-		return fmt.Errorf("failed to delete password file: %v", err)
-	}
-
-	// Try to remove empty parent directories.
-	dir := filepath.Dir(file)
-	for dir != passwordStore {
-		err := os.Remove(dir)
-		if err != nil {
-			break // Directory not empty or other error.
-		}
-		dir = filepath.Dir(dir)
-	}
-
-	return nil
-}
-
-// Print the password.
-func showPassword(agentSocket, identities, passwordStore, name string) error {
-	password, err := decryptPassword(agentSocket, identities, passwordStore, name)
-	if err != nil {
-		return err
-	}
-	fmt.Println(password)
-	return nil
 }
 
 // Check if the password name contains unacceptable path traversal.
@@ -889,27 +964,35 @@ func main() {
 
 	parser := kong.Must(&cli,
 		kong.Name("pago"),
-		kong.Description("A simple password manager."),
+		kong.Description("A command-line password manager."),
 		kong.ConfigureHelp(kong.HelpOptions{
 			Compact: true,
 		}),
 		kong.Vars{
 			"defaultDataDir": defaultDataDir,
+			"defaultLength":  defaultLength,
+			"defaultPattern": defaultPattern,
 			"defaultSocket":  filepath.Join(defaultCacheDir, agentSocketPath),
+
+			"dataDirEnv": dataDirEnv,
+			"socketEnv":  socketEnv,
+			"timeoutEnv": timeoutEnv,
+			"lengthEnv":  lengthEnv,
+			"patternEnv": patternEnv,
 		},
 	)
 
 	// Set the default command according to whether the data directory exists.
 	args := os.Args[1:]
 	if len(args) == 0 {
-		dataDir := os.Getenv("PAGO_DIR")
+		dataDir := os.Getenv(dataDirEnv)
 		if dataDir == "" {
 			dataDir = defaultDataDir
 		}
 		storePath := filepath.Join(dataDir, storePath)
 
 		if pathExists(storePath) {
-			args = []string{"tree"}
+			args = []string{"show"}
 		} else {
 			args = []string{"--help"}
 		}
