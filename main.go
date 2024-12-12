@@ -249,13 +249,13 @@ func passwordFile(passwordStore, name string) string {
 	return filepath.Join(passwordStore, name+ageExt)
 }
 
-func passwordExists(passwordStore, name string) bool {
-	_, err := os.Stat(passwordFile(passwordStore, name))
-	if errors.Is(err, os.ErrNotExist) {
-		return false
-	}
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return !errors.Is(err, os.ErrNotExist)
+}
 
-	return true
+func passwordExists(passwordStore, name string) bool {
+	return pathExists(passwordFile(passwordStore, name))
 }
 
 // Parse the entire text of an age recipients file.
@@ -808,7 +808,7 @@ Environment variables:
 }
 
 func requireArgs(command string, minimum, maximum int) {
-	actual := len(os.Args) - 2
+	actual := max(0, len(os.Args) - 2)
 
 	if actual < minimum {
 		exitWithWrongUsage("too few arguments for '%s'", command)
@@ -830,23 +830,23 @@ func main() {
 		exitWithError("failed to create password store directory: %v", err)
 	}
 
-	printHelp := false
-	if len(os.Args) < 2 {
-		printHelp = true
-	} else {
+	command := ""
+	if len(os.Args) > 1 {
 		for _, arg := range os.Args[1:] {
 			if arg == "-h" || arg == "--help" {
-				printHelp = true
-				break
+				usage(config.Home)
+				os.Exit(0)
 			}
 		}
-	}
-	if printHelp {
-		usage(config.Home)
-		os.Exit(0)
+
+		command = os.Args[1]
+	} else if pathExists(config.Store) {
+		// Pick a default command.
+		command = "tree"
+	} else {
+		command = "help"
 	}
 
-	command := os.Args[1]
 	var name string
 	if len(os.Args) > 2 {
 		name = os.Args[2]
@@ -909,7 +909,7 @@ func main() {
 
 		if err := clipboard.Init(); err != nil {
 			exitWithError("failed to initialize clipboard: %v", err)
-	    }
+		}
 
 		clipboard.Write(clipboard.FmtText, []byte(password))
 		fmt.Println("Password copied to clipboard.")
