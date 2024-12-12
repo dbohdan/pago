@@ -54,7 +54,6 @@ import (
 	"golang.org/x/term"
 
 	"filippo.io/age"
-	"golang.design/x/clipboard"
 	"filippo.io/age/armor"
 	"github.com/adrg/xdg"
 	tsize "github.com/kopoli/go-terminal-size"
@@ -62,6 +61,7 @@ import (
 	"github.com/tidwall/redcon"
 	"github.com/valkey-io/valkey-go"
 	"github.com/xlab/treeprint"
+	"golang.design/x/clipboard"
 )
 
 type Config struct {
@@ -685,7 +685,7 @@ func listFiles(root string, transform func(name string, info os.FileInfo) (bool,
 }
 
 func dirTree(root string, transform func(name string, info os.FileInfo) (bool, string)) (string, error) {
-	tree := treeprint.New()
+	tree := treeprint.NewWithRoot(filepath.Base(root))
 	visited := make(map[string]treeprint.Tree)
 
 	err := filepath.Walk(root, func(name string, info os.FileInfo, err error) error {
