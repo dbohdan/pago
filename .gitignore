@@ -1,5 +1,8 @@
 /attic/
+/dist/
 /help
 /pago
+/.task/
 *.age
+*.exe
 *.swp
