@@ -1,7 +1,6 @@
 root = true
 
-# Force GitHub to display tabs
-# mixed with [4] spaces properly.
-[pash]
-indent_style = tab
+# Force GitHub to display tabs as four spaces.
+[*.go]
 indent_size  = 4
+indent_style = tab
