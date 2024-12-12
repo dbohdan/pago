@@ -36,6 +36,8 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"crypto/rand"
 	"errors"
 	"fmt"
@@ -57,31 +59,42 @@ import (
 	"github.com/anmitsu/go-shlex"
 	tsize "github.com/kopoli/go-terminal-size"
 	"github.com/mitchellh/go-wordwrap"
+	"github.com/tidwall/redcon"
+	"github.com/valkey-io/valkey-go"
 	"github.com/xlab/treeprint"
 )
 
 type Config struct {
-	CacheDir   string
-	Clip       []string
-	DataDir    string
-	Home       string
-	Identities string
-	Length     int
-	Pattern    regexp.Regexp
-	Recipients string
-	Store      string
-	Timeout    time.Duration
+	AgentSocket string
+	Clip        []string
+	DataDir     string
+	Home        string
+	Identities  string
+	Length      int
+	Pattern     regexp.Regexp
+	Recipients  string
+	Store       string
+	Timeout     time.Duration
 }
 
 const (
-	ageExt         = ".age"
-	dirPerms       = 0o700
-	defaultClip    = "xclip -in -selection clipboard"
-	defaultLength  = "20"
-	defaultPattern = "[A-Za-z0-9]"
-	defaultTimeout = "30"
-	maxSteps       = 10000
-	version        = "0.3.0"
+	ageExt          = ".age"
+	agentSocketPath = "socket"
+	defaultClip     = "xclip -in -selection clipboard"
+	defaultLength   = "20"
+	defaultPattern  = "[A-Za-z0-9]"
+	defaultTimeout  = "30"
+	dirPerms        = 0o700
+	maxStepsPerChar = 500
+	socketPerms     = 0o600
+	storePath       = "store"
+	version         = "0.4.0"
+	waitForSocket   = 3 * time.Second
+)
+
+var (
+	defaultCacheDir = filepath.Join(xdg.CacheHome, "pago")
+	defaultDataDir  = filepath.Join(xdg.DataHome, "pago")
 )
 
 // Initialize configuration with defaults and environment variables.
@@ -115,21 +128,22 @@ func initConfig() (*Config, error) {
 		return nil, fmt.Errorf("invalid pattern: %v", err)
 	}
 
-	cacheDir := getEnv("PAGO_CACHE_DIR", filepath.Join(xdg.CacheHome, "pago"))
-	dataDir := getEnv("PAGO_DIR", filepath.Join(xdg.DataHome, "pago"))
-	store := filepath.Join(dataDir, "store")
+	cacheDir := getEnv("PAGO_CACHE_DIR", defaultCacheDir)
+	agentSocket := getEnv("PAGO_SOCK", filepath.Join(cacheDir, agentSocketPath))
+	dataDir := getEnv("PAGO_DIR", defaultDataDir)
+	store := filepath.Join(dataDir, storePath)
 
 	config := Config{
-		CacheDir:   cacheDir,
-		Clip:       clip,
-		DataDir:    dataDir,
-		Home:       home,
-		Identities: filepath.Join(dataDir, "identities"),
-		Length:     length,
-		Pattern:    *pattern,
-		Recipients: filepath.Join(store, ".age-recipients"),
-		Store:      store,
-		Timeout:    time.Duration(timeoutSeconds) * time.Second,
+		AgentSocket: agentSocket,
+		Clip:        clip,
+		DataDir:     dataDir,
+		Home:        home,
+		Identities:  filepath.Join(dataDir, "identities"),
+		Length:      length,
+		Pattern:     *pattern,
+		Recipients:  filepath.Join(store, ".age-recipients"),
+		Store:       store,
+		Timeout:     time.Duration(timeoutSeconds) * time.Second,
 	}
 
 	return &config, nil
@@ -142,13 +156,17 @@ func getEnv(key, defaultValue string) string {
 	return defaultValue
 }
 
-func exitWithError(format string, value any) {
+func printError(format string, value any) {
 	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", value)
+}
+
+func exitWithError(format string, value any) {
+	printError(format, value)
 	os.Exit(1)
 }
 
 func exitWithWrongUsage(format string, value any) {
-	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", value)
+	printError(format, value)
 	os.Exit(2)
 }
 
@@ -206,7 +224,7 @@ func generatePassword(pattern regexp.Regexp, length int) (string, error) {
 		}
 
 		steps++
-		if steps >= maxSteps {
+		if steps == length*maxStepsPerChar {
 			return "", fmt.Errorf("failed to generate password after %d steps", steps)
 		}
 	}
@@ -333,13 +351,39 @@ func wrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
 	return age.Decrypt(r, identities...)
 }
 
-func decryptIdentities(identitiesPath string) (string, error) {
-	f, err := os.Open(identitiesPath)
+func decryptIdentities(agentSocket, identitiesPath string) (string, error) {
+	encryptedData, err := os.ReadFile(identitiesPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to open identities file: %v", err)
 	}
-	defer f.Close()
 
+	// If an agent socket is configured, try to use the agent.
+	if agentSocket != "" {
+		decrypted, err := tryAgent(agentSocket, encryptedData)
+		if err == nil {
+			return decrypted, nil
+		}
+
+		// If we couldn't connect, get a password and start a new agent.
+		password, err := secureRead("Enter password to unlock identities: ")
+		if err != nil {
+			return "", fmt.Errorf("failed to read password: %v", err)
+		}
+
+		if err := startAgent(agentSocket, password); err != nil {
+			return "", fmt.Errorf("failed to start agent: %v", err)
+		}
+
+		// Try connecting to the new agent.
+		decrypted, err = tryAgent(agentSocket, encryptedData)
+		if err == nil {
+			return decrypted, nil
+		}
+
+		return "", fmt.Errorf("failed to use agent: %v", err)
+	}
+
+	// When no agent socket is configured, decrypt directly.
 	password, err := secureRead("Enter password to unlock identities: ")
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %v", err)
@@ -351,7 +395,7 @@ func decryptIdentities(identitiesPath string) (string, error) {
 		return "", fmt.Errorf("failed to create password-based identity: %v", err)
 	}
 
-	r, err := wrapDecrypt(f, identity)
+	r, err := wrapDecrypt(bytes.NewReader(encryptedData), identity)
 	if err != nil {
 		return "", fmt.Errorf("failed to decrypt identities: %v", err)
 	}
@@ -364,9 +408,188 @@ func decryptIdentities(identitiesPath string) (string, error) {
 	return string(decrypted), nil
 }
 
-func decryptPassword(identities, passwordStore, name string) (string, error) {
+func tryAgent(socketPath string, data []byte) (string, error) {
+	// Check socket security.
+	if err := checkSocketSecurity(socketPath); err != nil {
+		return "", fmt.Errorf("socket security check failed: %v", err)
+	}
+
+	// Connect to the server.
+	opts, err := valkey.ParseURL("unix://" + socketPath)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse socket URL: %v", err)
+	}
+	opts.DisableCache = true
+
+	client, err := valkey.NewClient(opts)
+	if err != nil {
+		return "", fmt.Errorf("failed to create Valkey client: %v", err)
+	}
+	defer client.Close()
+
+	ctx := context.Background()
+
+	// Try a PING to verify the connection.
+	if err := client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
+		return "", fmt.Errorf("failed to ping agent: %v", err)
+	}
+
+	// Send the decrypt command.
+	cmd := client.Do(ctx, client.B().Arbitrary("DECRYPT", valkey.BinaryString(data)).Build())
+	if err := cmd.Error(); err != nil {
+		return "", fmt.Errorf("decrypt command failed: %v", err)
+	}
+
+	result, err := cmd.ToString()
+	if err != nil {
+		return "", fmt.Errorf("failed to get result: %v", err)
+	}
+
+	return string(result), nil
+}
+
+func checkSocketSecurity(socketPath string) error {
+	info, err := os.Stat(socketPath)
+	if err != nil {
+		return fmt.Errorf("failed to stat socket: %v", err)
+	}
+
+	// Check socket permissions.
+	if info.Mode().Perm() != socketPerms {
+		return fmt.Errorf("incorrect socket permissions: %v", info.Mode().Perm())
+	}
+
+	// Check socket ownership.
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return fmt.Errorf("failed to get socket system info")
+	}
+
+	if stat.Uid != uint32(os.Getuid()) {
+		return fmt.Errorf("socket owned by wrong user: %d", stat.Uid)
+	}
+
+	return nil
+}
+
+func waitUntilAvailable(path string, maximum time.Duration) error {
+	start := time.Now()
+
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return nil
+		}
+
+		elapsed := time.Now().Sub(start)
+		if elapsed > maximum {
+			return fmt.Errorf("reached %v timeout", maximum)
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+}
+
+func startAgent(agentSocket, password string) error {
+	// The agent is the same executable.
+	exe, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %v", err)
+	}
+
+	cmd := exec.Command(exe, "agent")
+	cmd.Env = append(os.Environ(), "PAGO_AGENT_PASSWORD="+password)
+
+	// Start the process in the background.
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start agent: %v", err)
+	}
+
+	_ = os.Remove(agentSocket)
+	// Don't wait for the process to finish.
+	go cmd.Wait()
+
+	if err := waitUntilAvailable(agentSocket, waitForSocket); err != nil {
+		return fmt.Errorf("timed out waiting for agent socket")
+	}
+
+	return nil
+}
+
+func runAgent(agentSocket string, password string) error {
+	socketDir := filepath.Dir(agentSocket)
+	if err := os.MkdirAll(socketDir, dirPerms); err != nil {
+		return fmt.Errorf("failed to create socket directory: %v", err)
+	}
+
+	os.Remove(agentSocket)
+
+	srv := redcon.NewServerNetwork(
+		"unix",
+		agentSocket,
+		func(conn redcon.Conn, cmd redcon.Command) {
+			switch strings.ToUpper(string(cmd.Args[0])) {
+
+			case "DECRYPT":
+				if len(cmd.Args) != 2 {
+					conn.WriteError(`ERR wrong number of arguments for "decrypt" command`)
+					return
+				}
+
+				encryptedData := cmd.Args[1]
+
+				// Create an identity from the password.
+				identity, err := age.NewScryptIdentity(password)
+				if err != nil {
+					conn.WriteError("ERR failed to create identity: " + err.Error())
+					return
+				}
+
+				// Decrypt the data.
+				reader := bytes.NewReader(encryptedData)
+				decryptedReader, err := wrapDecrypt(reader, identity)
+				if err != nil {
+					conn.WriteError("ERR failed to decrypt: " + err.Error())
+					return
+				}
+
+				// Read decrypted data.
+				decryptedData, err := io.ReadAll(decryptedReader)
+				if err != nil {
+					conn.WriteError("ERR failed to read decrypted data: " + err.Error())
+					return
+				}
+
+				conn.WriteBulk(decryptedData)
+
+			case "PING":
+				conn.WriteString("PONG")
+
+			default:
+				conn.WriteError(fmt.Sprintf("ERR unknown command %q", cmd.Args[0]))
+			}
+		},
+		nil,
+		nil,
+	)
+
+	errc := make(chan error)
+
+	go func() {
+		if err := <-errc; err != nil {
+			return
+		}
+
+		if err := os.Chmod(agentSocket, socketPerms); err != nil {
+			exitWithError("failed to set permissions on agent socket: %v", err)
+		}
+	}()
+
+	return srv.ListenServeAndSignal(errc)
+}
+
+func decryptPassword(agentSocket, identities, passwordStore, name string) (string, error) {
 	// Decrypt the password-protected identities file first.
-	identityFile, err := decryptIdentities(identities)
+	identityFile, err := decryptIdentities(agentSocket, identities)
 	if err != nil {
 		return "", err
 	}
@@ -420,8 +643,8 @@ func deletePassword(passwordStore, name string) error {
 }
 
 // Print the password.
-func showPassword(identities, passwordStore, name string) error {
-	password, err := decryptPassword(identities, passwordStore, name)
+func showPassword(agentSocket, identities, passwordStore, name string) error {
+	password, err := decryptPassword(agentSocket, identities, passwordStore, name)
 	if err != nil {
 		return err
 	}
@@ -539,6 +762,12 @@ func dirTree(root string, transform func(name string, info os.FileInfo) (bool, s
 	return tree.String(), nil
 }
 
+// Quote a string for POSIX shell.
+// Put the string in double quotes to enable tilde subtitution when pasted.
+func quoteForShell(s string) string {
+	return `"` + strings.ReplaceAll(s, `"`, `"'"'"`) + `"`
+}
+
 func wrapForTerm(s string) string {
 	size, err := tsize.GetSize()
 	if err != nil {
@@ -548,8 +777,9 @@ func wrapForTerm(s string) string {
 	return wordwrap.WrapString(s, uint(size.Width))
 }
 
-func usage(dataDir, home string) {
-	dataDir = strings.ReplaceAll(dataDir, home, "~")
+func usage(home string) {
+	agentSocket := filepath.Join("~", strings.TrimPrefix(filepath.Join(defaultCacheDir, agentSocketPath), home))
+	dataDir := filepath.Join("~", strings.TrimPrefix(defaultDataDir, home))
 	me := filepath.Base(os.Args[0])
 
 	message := fmt.Sprintf(`Usage: %s <command> [<name>]
@@ -585,7 +815,7 @@ Commands:
           Print version number and exit
 
 Environment variables:
-  PAGO_CLIP='%s'
+  PAGO_CLIP=%s
           Clipboard tool
 
   PAGO_DIR=%s
@@ -594,17 +824,21 @@ Environment variables:
   PAGO_LENGTH=%s
           Password length
 
-  PAGO_PATTERN='%s'
+  PAGO_PATTERN=%s
           Password pattern (regular expression)
+
+  PAGO_SOCK=%s
+          Agent socket path (blank to disable)
 
   PAGO_TIMEOUT=%s
           Clipboard timeout ('off' to disable)
 `,
 		me,
-		defaultClip,
-		dataDir,
+		quoteForShell(defaultClip),
+		quoteForShell(dataDir),
 		defaultLength,
-		defaultPattern,
+		quoteForShell(defaultPattern),
+		quoteForShell(agentSocket),
 		defaultTimeout,
 	)
 
@@ -646,7 +880,7 @@ func main() {
 		}
 	}
 	if printHelp {
-		usage(config.DataDir, config.Home)
+		usage(config.Home)
 		os.Exit(0)
 	}
 
@@ -689,6 +923,16 @@ func main() {
 		}
 		fmt.Println("Password saved.")
 
+	case "agent":
+		agentPassword := os.Getenv("PAGO_AGENT_PASSWORD")
+		if agentPassword == "" {
+			exitWithError("'PAGO_AGENT_PASSWORD' environment variable not set%v", "")
+		}
+
+		err := runAgent(config.AgentSocket, agentPassword)
+		if err != nil {
+			exitWithError("%v", err)
+		}
 	case "c", "copy":
 		requireArgs(command, 1, 1)
 
@@ -696,7 +940,7 @@ func main() {
 			exitWithError("password file doesn't exist: %v", name)
 		}
 
-		password, err := decryptPassword(config.Identities, config.Store, name)
+		password, err := decryptPassword(config.AgentSocket, config.Identities, config.Store, name)
 		if err != nil {
 			exitWithError("%v", err)
 		}
@@ -728,7 +972,7 @@ func main() {
 	case "h", "help":
 		requireArgs(command, 0, 0)
 
-		usage(config.DataDir, config.Home)
+		usage(config.Home)
 		os.Exit(0)
 
 	case "l", "list":
@@ -759,7 +1003,7 @@ func main() {
 			exitWithError("password file doesn't exist: %v", name)
 		}
 
-		if err := showPassword(config.Identities, config.Store, name); err != nil {
+		if err := showPassword(config.AgentSocket, config.Identities, config.Store, name); err != nil {
 			exitWithError("%v", err)
 		}
 
