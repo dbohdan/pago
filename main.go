@@ -54,9 +54,9 @@ import (
 	"golang.org/x/term"
 
 	"filippo.io/age"
+	"golang.design/x/clipboard"
 	"filippo.io/age/armor"
 	"github.com/adrg/xdg"
-	"github.com/anmitsu/go-shlex"
 	tsize "github.com/kopoli/go-terminal-size"
 	"github.com/mitchellh/go-wordwrap"
 	"github.com/tidwall/redcon"
@@ -66,7 +66,6 @@ import (
 
 type Config struct {
 	AgentSocket string
-	Clip        []string
 	DataDir     string
 	Home        string
 	Identities  string
@@ -80,7 +79,6 @@ type Config struct {
 const (
 	ageExt          = ".age"
 	agentSocketPath = "socket"
-	defaultClip     = "xclip -in -selection clipboard"
 	defaultLength   = "20"
 	defaultPattern  = "[A-Za-z0-9]"
 	defaultTimeout  = "30"
@@ -88,7 +86,7 @@ const (
 	maxStepsPerChar = 500
 	socketPerms     = 0o600
 	storePath       = "store"
-	version         = "0.4.0"
+	version         = "0.5.0"
 	waitForSocket   = 3 * time.Second
 )
 
@@ -99,14 +97,6 @@ var (
 
 // Initialize configuration with defaults and environment variables.
 func initConfig() (*Config, error) {
-	clip, err := shlex.Split(getEnv("PAGO_CLIP", defaultClip), true)
-	if err != nil {
-		return nil, fmt.Errorf("failed to split clipboard command: %v", err)
-	}
-	if len(clip) == 0 {
-		return nil, fmt.Errorf("empty clipboard command")
-	}
-
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get home directory: %v", err)
@@ -135,7 +125,6 @@ func initConfig() (*Config, error) {
 
 	config := Config{
 		AgentSocket: agentSocket,
-		Clip:        clip,
 		DataDir:     dataDir,
 		Home:        home,
 		Identities:  filepath.Join(dataDir, "identities"),
@@ -666,29 +655,6 @@ func validatePath(passwordStore, name string) error {
 	return fmt.Errorf("password path is out of bounds")
 }
 
-// Copy text to clipboard with a timeout.
-func copyToClipboard(command []string, timeout time.Duration, text string) error {
-	cmd := exec.Command(command[0], command[1:]...)
-	cmd.Stdin = strings.NewReader(text)
-
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("error copying to clipboard: %s", err)
-	}
-
-	if timeout > 0 {
-		time.Sleep(timeout)
-
-		cmd := exec.Command(command[0], command[1:]...)
-		cmd.Stdin = strings.NewReader("")
-
-		if err := cmd.Run(); err != nil {
-			return fmt.Errorf("error clearing clipboard: %s", err)
-		}
-	}
-
-	return nil
-}
-
 func listFiles(root string, transform func(name string, info os.FileInfo) (bool, string)) ([]string, error) {
 	list := []string{}
 
@@ -815,9 +781,6 @@ Commands:
           Print version number and exit
 
 Environment variables:
-  PAGO_CLIP=%s
-          Clipboard tool
-
   PAGO_DIR=%s
           Store location
 
@@ -834,7 +797,6 @@ Environment variables:
           Clipboard timeout ('off' to disable)
 `,
 		me,
-		quoteForShell(defaultClip),
 		quoteForShell(dataDir),
 		defaultLength,
 		quoteForShell(defaultPattern),
@@ -944,10 +906,19 @@ func main() {
 		if err != nil {
 			exitWithError("%v", err)
 		}
-		if err := copyToClipboard(config.Clip, config.Timeout, password); err != nil {
-			exitWithError("%v", err)
-		}
+
+		if err := clipboard.Init(); err != nil {
+			exitWithError("failed to initialize clipboard: %v", err)
+	    }
+
+		clipboard.Write(clipboard.FmtText, []byte(password))
 		fmt.Println("Password copied to clipboard.")
+
+		if config.Timeout > 0 {
+			time.Sleep(config.Timeout)
+
+			clipboard.Write(clipboard.FmtText, []byte(""))
+		}
 
 	case "d", "del", "delete":
 		requireArgs(command, 1, 1)
