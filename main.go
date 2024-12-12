@@ -74,7 +74,7 @@ const (
 	waitForSocket   = 3 * time.Second
 
 	agentPasswordEnv = "PAGO_AGENT_PASSWORD"
-	dataDirEnv       = "PAGO_DATA_DIR"
+	dataDirEnv       = "PAGO_DIR"
 	socketEnv        = "PAGO_SOCK"
 	lengthEnv        = "PAGO_LENGTH"
 	patternEnv       = "PAGO_PATTERN"
