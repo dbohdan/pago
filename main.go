@@ -777,7 +777,7 @@ Commands:
   t, tree
           List all entries as tree
 
-  v, version
+  v, ver, version
           Print version number and exit
 
 Environment variables:
@@ -999,7 +999,7 @@ func main() {
 
 		fmt.Print(tree)
 
-	case "v", "version":
+	case "v", "ver", "version":
 		requireArgs(command, 0, 0)
 
 		fmt.Println(version)
