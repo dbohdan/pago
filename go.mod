@@ -7,6 +7,7 @@ require (
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/adrg/xdg v0.5.3
 	github.com/alecthomas/kong v1.6.0
+	github.com/alecthomas/repr v0.4.0
 	github.com/anmitsu/go-shlex v0.0.0-20200514113438-38f4b401e2be
 	github.com/tidwall/redcon v1.6.2
 	github.com/valkey-io/valkey-go v1.0.51

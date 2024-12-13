@@ -28,13 +28,15 @@ import (
 	"filippo.io/age/armor"
 	"github.com/adrg/xdg"
 	"github.com/alecthomas/kong"
+	"github.com/alecthomas/repr"
 	"github.com/anmitsu/go-shlex"
 )
 
 type CLI struct {
 	// Global options.
-	Dir    string `short:"d" env:"${dataDirEnv}" default:"${defaultDataDir}" help:"Store location"`
-	Socket string `short:"s" env:"${socketEnv}" default:"${defaultSocket}" help:"Agent socket path (blank to disable)"`
+	Dir     string `short:"d" env:"${dataDirEnv}" default:"${defaultDataDir}" help:"Store location"`
+	Socket  string `short:"s" env:"${socketEnv}" default:"${defaultSocket}" help:"Agent socket path (blank to disable)"`
+	Verbose bool   `hidden:"" help:"Print debugging information"`
 
 	// Commands.
 	Add      AddCmd      `cmd:"" aliases:"a" help:"Create new password entry"`
@@ -55,6 +57,7 @@ type Config struct {
 	Recipients string
 	Socket     string
 	Store      string
+	Verbose    bool
 }
 
 const (
@@ -405,6 +408,7 @@ func initConfig(cli *CLI) (*Config, error) {
 		Recipients: filepath.Join(store, ".age-recipients"),
 		Socket:     cli.Socket,
 		Store:      store,
+		Verbose: cli.Verbose,
 	}
 
 	return &config, nil
@@ -814,6 +818,10 @@ func main() {
 	config, err := initConfig(&cli)
 	if err != nil {
 		exitWithError("%v", err)
+	}
+	if config.Verbose {
+		configRepr := repr.String(config, repr.Indent("\t"), repr.OmitEmpty(false))
+		fmt.Fprintf(os.Stderr, "%s\n\n", configRepr)
 	}
 
 	err = os.MkdirAll(config.Store, dirPerms)
