@@ -122,7 +122,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 	if err := savePassword(config.Recipients, config.Store, cmd.Name, password); err != nil {
 		return err
 	}
-	fmt.Println("Password saved.")
+	fmt.Fprintln(os.Stderr, "Password saved.")
 	return nil
 }
 
@@ -156,7 +156,7 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		if cmd.Timeout%10 == 1 && cmd.Timeout%100 != 11 {
 			ending = ""
 		}
-		fmt.Printf("Clearing clipboard in %v second%s\n", cmd.Timeout, ending)
+		fmt.Fprintf(os.Stderr, "Clearing clipboard in %v second%s\n", cmd.Timeout, ending)
 
 		time.Sleep(timeout)
 		clipboard.Write(clipboard.FmtText, []byte(""))
@@ -408,9 +408,9 @@ func exitWithWrongUsage(format string, value any) {
 
 // Read a password from the terminal without echo.
 func secureRead(prompt string) (string, error) {
-	fmt.Print(prompt)
+	fmt.Fprint(os.Stderr, prompt)
 	password, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 	if err != nil {
 		return "", err
 	}
@@ -419,7 +419,7 @@ func secureRead(prompt string) (string, error) {
 }
 
 func askYesNo(prompt string) (bool, error) {
-	fmt.Printf("%s [y/n]: ", prompt)
+	fmt.Fprintf(os.Stderr, "%s [y/n]: ", prompt)
 
 	// Save the terminal state to restore later.
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
@@ -436,7 +436,7 @@ func askYesNo(prompt string) (bool, error) {
 	}
 
 	term.Restore(int(os.Stdin.Fd()), oldState)
-	fmt.Println()
+	fmt.Fprintln(os.Stderr)
 
 	answer := strings.ToLower(string(input[0]))
 	return answer == "y", nil
