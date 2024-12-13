@@ -4,8 +4,10 @@ go 1.22
 
 require (
 	filippo.io/age v1.2.0
+	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/adrg/xdg v0.5.3
 	github.com/alecthomas/kong v1.6.0
+	github.com/creack/pty v1.1.17
 	github.com/tidwall/redcon v1.6.2
 	github.com/valkey-io/valkey-go v1.0.51
 	github.com/xlab/treeprint v1.2.0

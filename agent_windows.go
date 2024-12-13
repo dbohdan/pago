@@ -1,4 +1,5 @@
 //go:build windows
+
 // pago - a command-line password manager.
 //
 // License: MIT.
