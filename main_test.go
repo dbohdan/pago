@@ -16,7 +16,6 @@ import (
 	"testing"
 
 	expect "github.com/Netflix/go-expect"
-	"golang.design/x/clipboard"
 )
 
 const (
@@ -155,12 +154,7 @@ func TestAdd(t *testing.T) {
 }
 
 func TestClip(t *testing.T) {
-	err := clipboard.Init()
-	if err != nil {
-		t.Skipf("Skipping clipboard test: %v", err)
-	}
-
-	_, err = withPagoDir(func(dataDir string) (string, error) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
 		stdout, stderr, err := runCommandEnv(
 			[]string{"PAGO_DIR=" + dataDir},
 			"add", "foo", "--length", "32", "--pattern", "[a]", "--random",
@@ -175,7 +169,7 @@ func TestClip(t *testing.T) {
 		}
 		defer c.Close()
 
-		cmd := exec.Command(commandPago, "clip", "-d", dataDir, "-s", "", "-t", "1", "foo")
+		cmd := exec.Command(commandPago, "clip", "-d", dataDir, "-s", "", "-c", "echo", "-t", "1", "foo")
 		cmd.Stdin = c.Tty()
 		cmd.Stdout = c.Tty()
 		cmd.Stderr = c.Tty()
@@ -199,7 +193,7 @@ func TestClip(t *testing.T) {
 		return "", nil
 	})
 	if err != nil {
-		t.Errorf("Command show `clip` failed: %v", err)
+		t.Errorf("Command `clip` failed: %v", err)
 	}
 }
 
@@ -304,7 +298,7 @@ func TestShowName(t *testing.T) {
 		return buf.String(), nil
 	})
 	if err != nil {
-		t.Errorf("Command show `show foo` failed: %v", err)
+		t.Errorf("Command `show foo` failed: %v", err)
 	}
 
 	re := `^a{32}$`

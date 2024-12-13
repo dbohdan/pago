@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -27,7 +28,7 @@ import (
 	"filippo.io/age/armor"
 	"github.com/adrg/xdg"
 	"github.com/alecthomas/kong"
-	"golang.design/x/clipboard"
+	"github.com/anmitsu/go-shlex"
 )
 
 type CLI struct {
@@ -69,6 +70,7 @@ const (
 	waitForSocket   = 3 * time.Second
 
 	agentPasswordEnv = "PAGO_AGENT_PASSWORD"
+	clipEnv          = "PAGO_CLIP"
 	dataDirEnv       = "PAGO_DIR"
 	socketEnv        = "PAGO_SOCK"
 	lengthEnv        = "PAGO_LENGTH"
@@ -130,7 +132,24 @@ type AgentCmd struct{}
 type ClipCmd struct {
 	Name string `arg:"" help:"Name of the password entry"`
 
-	Timeout int `short:"t" env:"${timeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable)"`
+	Command string `short:"c" env:"${clipEnv}" default:"${defaultClip}" help:"Command for copying text from stdin to clipboard"`
+	Timeout int    `short:"t" env:"${timeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable)"`
+}
+
+func copyToClipboard(command string, text string) error {
+	args, err := shlex.Split(command, true)
+	if err != nil {
+		return fmt.Errorf("failed to split clipboard command: %v", err)
+	}
+
+	cmd := exec.Command(args[0], args[1:]...)
+	cmd.Stdin = strings.NewReader(text)
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to rub clipboard command: %v", err)
+	}
+
+	return nil
 }
 
 func (cmd *ClipCmd) Run(config *Config) error {
@@ -143,11 +162,9 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		return err
 	}
 
-	if err := clipboard.Init(); err != nil {
-		return fmt.Errorf("failed to initialize clipboard: %v", err)
+	if err := copyToClipboard(cmd.Command, password); err != nil {
+		return fmt.Errorf("failed to copy password to clipboard: %v", err)
 	}
-
-	clipboard.Write(clipboard.FmtText, []byte(password))
 
 	timeout := time.Duration(cmd.Timeout) * time.Second
 	if timeout > 0 {
@@ -158,7 +175,9 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		fmt.Fprintf(os.Stderr, "Clearing clipboard in %v second%s\n", cmd.Timeout, ending)
 
 		time.Sleep(timeout)
-		clipboard.Write(clipboard.FmtText, []byte(""))
+		if err := copyToClipboard(cmd.Command, ""); err != nil {
+			return fmt.Errorf("failed to clear clipboard: %v", err)
+		}
 	}
 
 	return nil
@@ -756,11 +775,13 @@ func main() {
 			os.Exit(code)
 		}),
 		kong.Vars{
+			"defaultClip":    defaultClip,
 			"defaultDataDir": defaultDataDir,
 			"defaultLength":  defaultLength,
 			"defaultPattern": defaultPattern,
 			"defaultSocket":  defaultSocket,
 
+			"clipEnv":    clipEnv,
 			"dataDirEnv": dataDirEnv,
 			"socketEnv":  socketEnv,
 			"timeoutEnv": timeoutEnv,
