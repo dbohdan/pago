@@ -64,7 +64,7 @@ const (
 	defaultPattern  = "[A-Za-z0-9]"
 	dirPerms        = 0o700
 	filePerms       = 0o600
-	maxStepsPerChar = 500
+	maxStepsPerChar = 1000
 	storePath       = "store"
 	version         = "0.6.0"
 	waitForSocket   = 3 * time.Second
