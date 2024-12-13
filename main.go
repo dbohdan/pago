@@ -423,11 +423,6 @@ func exitWithError(format string, value any) {
 	os.Exit(1)
 }
 
-func exitWithWrongUsage(format string, value any) {
-	printError(format, value)
-	os.Exit(2)
-}
-
 // Read a password from the terminal without echo.
 func secureRead(prompt string) (string, error) {
 	fmt.Fprint(os.Stderr, prompt)
