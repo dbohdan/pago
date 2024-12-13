@@ -1,0 +1,50 @@
+version: '3'
+
+vars:
+  ext: '{{if eq OS "windows"}}.exe{{end}}'
+
+env:
+  CGO_ENABLED: 0
+
+tasks:
+  default:
+    deps:
+      - test
+
+  all:
+    desc: 'Build and test everything'
+    deps:
+      - test
+
+  build:
+    desc: 'Build all components'
+    deps:
+      - build_pago
+
+  build_pago:
+    desc: 'Build the pago binary'
+    cmds:
+      - cmd: go build
+    sources:
+      - '*.go'
+    generates:
+      - pago
+
+  clean:
+    desc: 'Clean up binaries'
+    cmds:
+      - rm -f pago pago.exe
+
+  release:
+    desc: 'Prepare a release'
+    deps:
+      - build_pago
+    cmds:
+      - VERSION=$(./pago{{.ext}} version) go run script/release.go
+
+  test:
+    desc: 'Run tests'
+    deps:
+      - build_pago
+    cmds:
+      - go test
