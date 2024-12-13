@@ -96,7 +96,16 @@ type AddCmd struct {
 	Random bool `short:"r" help:"Generate a random password" xor:"mode"`
 }
 
+func printRepr(value any) {
+	valueRepr := repr.String(value, repr.Indent("\t"), repr.OmitEmpty(false))
+	fmt.Fprintf(os.Stderr, "%s\n\n", valueRepr)
+}
+
 func (cmd *AddCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
 	if passwordExists(config.Store, cmd.Name) {
 		return fmt.Errorf("entry already exists: %v", cmd.Name)
 	}
@@ -156,6 +165,10 @@ func copyToClipboard(command string, text string) error {
 }
 
 func (cmd *ClipCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
 	if !passwordExists(config.Store, cmd.Name) {
 		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
 	}
@@ -193,6 +206,10 @@ type DeleteCmd struct {
 }
 
 func (cmd *DeleteCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
 	if !passwordExists(config.Store, cmd.Name) {
 		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
 	}
@@ -232,6 +249,10 @@ type FindCmd struct {
 }
 
 func (cmd *FindCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
 	pattern, err := regexp.Compile(cmd.Pattern)
 	if err != nil {
 		return fmt.Errorf("failed to compile regular expression: %v", err)
@@ -267,6 +288,10 @@ type GenerateCmd struct {
 }
 
 func (cmd *GenerateCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
 	password, err := generatePassword(cmd.Pattern, cmd.Length)
 	if err != nil {
 		return err
@@ -278,6 +303,10 @@ func (cmd *GenerateCmd) Run(config *Config) error {
 type InitCmd struct{}
 
 func (cmd *InitCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
 	if pathExists(config.Identities) {
 		return fmt.Errorf("identities file already exists")
 	}
@@ -362,6 +391,10 @@ func printStoreTree(store string) error {
 }
 
 func (cmd *ShowCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
 	if cmd.Name == "" {
 		return printStoreTree(config.Store)
 	}
@@ -388,6 +421,10 @@ func (cmd *ShowCmd) Run(config *Config) error {
 type VersionCmd struct{}
 
 func (cmd *VersionCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
 	fmt.Println(version)
 	return nil
 }
@@ -403,12 +440,13 @@ func initConfig(cli *CLI) (*Config, error) {
 
 	config := Config{
 		DataDir:    cli.Dir,
+		Git:        cli.Git,
 		Home:       home,
 		Identities: filepath.Join(cli.Dir, "identities"),
 		Recipients: filepath.Join(store, ".age-recipients"),
 		Socket:     cli.Socket,
 		Store:      store,
-		Verbose: cli.Verbose,
+		Verbose:    cli.Verbose,
 	}
 
 	return &config, nil
@@ -815,8 +853,7 @@ func main() {
 		exitWithError("%v", err)
 	}
 	if config.Verbose {
-		configRepr := repr.String(config, repr.Indent("\t"), repr.OmitEmpty(false))
-		fmt.Fprintf(os.Stderr, "%s\n\n", configRepr)
+		printRepr(config)
 	}
 
 	err = os.MkdirAll(config.Store, dirPerms)

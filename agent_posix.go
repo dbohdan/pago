@@ -26,6 +26,10 @@ import (
 var defaultSocket = filepath.Join(defaultCacheDir, agentSocketPath)
 
 func (cmd *AgentCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
 	agentPassword := os.Getenv(agentPasswordEnv)
 	if agentPassword == "" {
 		return fmt.Errorf("`%v` environment variable not set", agentPasswordEnv)

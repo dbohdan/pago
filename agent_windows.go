@@ -14,6 +14,10 @@ import (
 var defaultSocket = ""
 
 func (cmd *AgentCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
 	return fmt.Errorf("not implemented on Windows")
 }
 
