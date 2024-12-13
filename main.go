@@ -793,6 +793,13 @@ func main() {
 		kong.ConfigureHelp(kong.HelpOptions{
 			Compact: true,
 		}),
+		kong.Exit(func(code int) {
+			if code == 1 {
+				code = 2
+			}
+
+			os.Exit(code)
+		}),
 		kong.Vars{
 			"defaultDataDir": defaultDataDir,
 			"defaultLength":  defaultLength,
