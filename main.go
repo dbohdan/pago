@@ -36,11 +36,11 @@ import (
 
 type CLI struct {
 	// Global options.
-	Dir      string `short:"d" env:"${dataDirEnv}" default:"${defaultDataDir}" help:"Store location ($$${env})"`
-	Git      bool   `env:"${gitEnv}" default:"true" negatable:"" help:"Commit to Git"`
-	GitEmail string `env:"${gitEmailEnv}" default:"${defaultGitEmail}" help:"Email for Git commits"`
-	GitName  string `env:"${gitNameEnv}" default:"${defaultGitName}" help:"Name for Git commits"`
-	Socket   string `short:"s" env:"${socketEnv}" default:"${defaultSocket}" help:"Agent socket path (blank to disable)"`
+	Dir      string `short:"d" env:"${dataDirEnv}" default:"${defaultDataDir}" help:"Store location (${env})"`
+	Git      bool   `env:"${gitEnv}" default:"true" negatable:"" help:"Commit to Git (${env})"`
+	GitEmail string `env:"${gitEmailEnv}" default:"${defaultGitEmail}" help:"Email for Git commits (${env})"`
+	GitName  string `env:"${gitNameEnv}" default:"${defaultGitName}" help:"Name for Git commits (${env})"`
+	Socket   string `short:"s" env:"${socketEnv}" default:"${defaultSocket}" help:"Agent socket path (blank to disable, ${env})"`
 	Verbose  bool   `hidden:"" help:"Print debugging information"`
 
 	// Commands.
@@ -102,8 +102,8 @@ var (
 type AddCmd struct {
 	Name string `arg:"" help:"Name of the password entry"`
 
-	Length  int    `short:"l" env:"${lengthEnv}" default:"${defaultLength}" help:"Password length"`
-	Pattern string `short:"p" env:"${patternEnv}" default:"${defaultPattern}" help:"Password pattern (regular expression)"`
+	Length  int    `short:"l" env:"${lengthEnv}" default:"${defaultLength}" help:"Password length (${env})"`
+	Pattern string `short:"p" env:"${patternEnv}" default:"${defaultPattern}" help:"Password pattern (regular expression, ${env})"`
 
 	Input  bool `short:"i" help:"Input the password manually" xor:"mode"`
 	Random bool `short:"r" help:"Generate a random password" xor:"mode"`
@@ -170,8 +170,8 @@ type AgentCmd struct{}
 type ClipCmd struct {
 	Name string `arg:"" help:"Name of the password entry"`
 
-	Command string `short:"c" env:"${clipEnv}" default:"${defaultClip}" help:"Command for copying text from stdin to clipboard"`
-	Timeout int    `short:"t" env:"${timeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable)"`
+	Command string `short:"c" env:"${clipEnv}" default:"${defaultClip}" help:"Command for copying text from stdin to clipboard (${env})"`
+	Timeout int    `short:"t" env:"${timeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable, ${env})"`
 }
 
 func copyToClipboard(command string, text string) error {
@@ -322,8 +322,8 @@ func (cmd *FindCmd) Run(config *Config) error {
 }
 
 type GenerateCmd struct {
-	Length  int    `short:"l" env:"${lengthEnv}" default:"${defaultLength}" help:"Password length"`
-	Pattern string `short:"p" env:"${patternEnv}" default:"${defaultPattern}" help:"Password pattern (regular expression)"`
+	Length  int    `short:"l" env:"${lengthEnv}" default:"${defaultLength}" help:"Password length (${env})"`
+	Pattern string `short:"p" env:"${patternEnv}" default:"${defaultPattern}" help:"Password pattern (regular expression, ${env})"`
 }
 
 func (cmd *GenerateCmd) Run(config *Config) error {
