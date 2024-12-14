@@ -30,13 +30,18 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/alecthomas/repr"
 	"github.com/anmitsu/go-shlex"
+
+	gitConfig "github.com/go-git/go-git/v5/config"
 )
 
 type CLI struct {
 	// Global options.
-	Dir     string `short:"d" env:"${dataDirEnv}" default:"${defaultDataDir}" help:"Store location"`
-	Socket  string `short:"s" env:"${socketEnv}" default:"${defaultSocket}" help:"Agent socket path (blank to disable)"`
-	Verbose bool   `hidden:"" help:"Print debugging information"`
+	Dir      string `short:"d" env:"${dataDirEnv}" default:"${defaultDataDir}" help:"Store location ($$${env})"`
+	Git      bool   `env:"${gitEnv}" default:"true" negatable:"" help:"Commit to Git"`
+	GitEmail string `env:"${gitEmailEnv}" default:"${defaultGitEmail}" help:"Email for Git commits"`
+	GitName  string `env:"${gitNameEnv}" default:"${defaultGitName}" help:"Name for Git commits"`
+	Socket   string `short:"s" env:"${socketEnv}" default:"${defaultSocket}" help:"Agent socket path (blank to disable)"`
+	Verbose  bool   `hidden:"" help:"Print debugging information"`
 
 	// Commands.
 	Add      AddCmd      `cmd:"" aliases:"a" help:"Create new password entry"`
@@ -52,6 +57,9 @@ type CLI struct {
 
 type Config struct {
 	DataDir    string
+	Git        bool
+	GitEmail   string
+	GitName    string
 	Home       string
 	Identities string
 	Recipients string
@@ -69,21 +77,26 @@ const (
 	filePerms       = 0o600
 	maxStepsPerChar = 1000
 	storePath       = "store"
-	version         = "0.6.0"
+	version         = "0.7.0"
 	waitForSocket   = 3 * time.Second
 
 	agentPasswordEnv = "PAGO_AGENT_PASSWORD"
 	clipEnv          = "PAGO_CLIP"
 	dataDirEnv       = "PAGO_DIR"
-	socketEnv        = "PAGO_SOCK"
+	gitEnv           = "PAGO_GIT"
+	gitEmailEnv      = "GIT_AUTHOR_EMAIL"
+	gitNameEnv       = "GIT_AUTHOR_NAME"
 	lengthEnv        = "PAGO_LENGTH"
 	patternEnv       = "PAGO_PATTERN"
+	socketEnv        = "PAGO_SOCK"
 	timeoutEnv       = "PAGO_TIMEOUT"
 )
 
 var (
 	defaultCacheDir = filepath.Join(xdg.CacheHome, "pago")
 	defaultDataDir  = filepath.Join(xdg.DataHome, "pago")
+	defaultGitEmail = "pago password manager"
+	defaultGitName  = "pago@localhost"
 )
 
 type AddCmd struct {
@@ -135,6 +148,19 @@ func (cmd *AddCmd) Run(config *Config) error {
 	if err := savePassword(config.Recipients, config.Store, cmd.Name, password); err != nil {
 		return err
 	}
+
+	if config.Git {
+		if err := commit(
+			config.DataDir,
+			config.GitName,
+			config.GitEmail,
+			fmt.Sprintf("add %q", cmd.Name),
+			[]string{passwordFile(config.Store, cmd.Name)},
+		); err != nil {
+			return err
+		}
+	}
+
 	fmt.Fprintln(os.Stderr, "Password saved.")
 	return nil
 }
@@ -226,6 +252,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 	}
 
 	file := passwordFile(config.Store, cmd.Name)
+
 	if err := os.Remove(file); err != nil {
 		return fmt.Errorf("failed to delete entry: %v", err)
 	}
@@ -239,6 +266,18 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 			break
 		}
 		dir = filepath.Dir(dir)
+	}
+
+	if config.Git {
+		if err := commit(
+			config.DataDir,
+			config.GitName,
+			config.GitEmail,
+			fmt.Sprintf("remove %q", cmd.Name),
+			[]string{file},
+		); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -362,6 +401,22 @@ func (cmd *InitCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to write recipients file: %w", err)
 	}
 
+	if config.Git {
+		if err := initGitRepo(config.DataDir); err != nil {
+			return err
+		}
+
+		if err := commit(
+			config.DataDir,
+			config.GitName,
+			config.GitEmail,
+			"Initial commit",
+			[]string{config.Identities, config.Recipients},
+		); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -441,6 +496,8 @@ func initConfig(cli *CLI) (*Config, error) {
 	config := Config{
 		DataDir:    cli.Dir,
 		Git:        cli.Git,
+		GitEmail:   cli.GitEmail,
+		GitName:    cli.GitName,
 		Home:       home,
 		Identities: filepath.Join(cli.Dir, "identities"),
 		Recipients: filepath.Join(store, ".age-recipients"),
@@ -610,8 +667,9 @@ func savePassword(recipients, passwordStore, name, password string) error {
 		return fmt.Errorf("failed to create output file: %v", err)
 	}
 	defer f.Close()
+	armorWriter := armor.NewWriter(f)
 
-	w, err := age.Encrypt(f, recips...)
+	w, err := age.Encrypt(armorWriter, recips...)
 	if err != nil {
 		return fmt.Errorf("failed to create encryption writer: %v", err)
 	}
@@ -622,6 +680,10 @@ func savePassword(recipients, passwordStore, name, password string) error {
 
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("failed to finish encryption: %v", err)
+	}
+
+	if err := armorWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close armor writer: %w", err)
 	}
 
 	return nil
@@ -800,6 +862,12 @@ func listFiles(root string, transform func(name string, info os.FileInfo) (bool,
 }
 
 func main() {
+	globalConfig, err := gitConfig.LoadConfig(gitConfig.GlobalScope)
+	if err == nil {
+		defaultGitEmail = globalConfig.User.Email
+		defaultGitName = globalConfig.User.Name
+	}
+
 	var cli CLI
 
 	parser := kong.Must(&cli,
@@ -816,18 +884,23 @@ func main() {
 			os.Exit(code)
 		}),
 		kong.Vars{
-			"defaultClip":    defaultClip,
-			"defaultDataDir": defaultDataDir,
-			"defaultLength":  defaultLength,
-			"defaultPattern": defaultPattern,
-			"defaultSocket":  defaultSocket,
+			"defaultClip":     defaultClip,
+			"defaultDataDir":  defaultDataDir,
+			"defaultGitEmail": defaultGitEmail,
+			"defaultGitName":  defaultGitName,
+			"defaultLength":   defaultLength,
+			"defaultPattern":  defaultPattern,
+			"defaultSocket":   defaultSocket,
 
-			"clipEnv":    clipEnv,
-			"dataDirEnv": dataDirEnv,
-			"socketEnv":  socketEnv,
-			"timeoutEnv": timeoutEnv,
-			"lengthEnv":  lengthEnv,
-			"patternEnv": patternEnv,
+			"clipEnv":     clipEnv,
+			"dataDirEnv":  dataDirEnv,
+			"gitEnv":      gitEnv,
+			"gitEmailEnv": gitEmailEnv,
+			"gitNameEnv":  gitNameEnv,
+			"socketEnv":   socketEnv,
+			"timeoutEnv":  timeoutEnv,
+			"lengthEnv":   lengthEnv,
+			"patternEnv":  patternEnv,
 		},
 	)
 
@@ -838,9 +911,9 @@ func main() {
 		if dataDir == "" {
 			dataDir = defaultDataDir
 		}
-		storePath := filepath.Join(dataDir, storePath)
+		storeDir := filepath.Join(dataDir, storePath)
 
-		if pathExists(storePath) {
+		if pathExists(storeDir) {
 			args = []string{"show"}
 		} else {
 			args = []string{"--help"}

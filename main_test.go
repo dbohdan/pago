@@ -199,7 +199,10 @@ func TestClip(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
-		err := createFakeEntry(dataDir, "foo")
+		_, _, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "foo", "--random",
+		)
 		if err != nil {
 			return "", err
 		}
