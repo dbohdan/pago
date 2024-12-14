@@ -30,15 +30,10 @@ func (cmd *AgentCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	agentPassword := os.Getenv(agentPasswordEnv)
-	if agentPassword == "" {
-		return fmt.Errorf("`%v` environment variable not set", agentPasswordEnv)
-	}
-
-	return runAgent(config.Socket, agentPassword)
+	return runAgent(config.Socket)
 }
 
-func startAgent(agentSocket, password string) error {
+func startAgentProcess(agentSocket, passphrase string) error {
 	// The agent is the same executable.
 	exe, err := os.Executable()
 	if err != nil {
@@ -46,7 +41,6 @@ func startAgent(agentSocket, password string) error {
 	}
 
 	cmd := exec.Command(exe, "agent")
-	cmd.Env = append(os.Environ(), agentPasswordEnv+"="+password, socketEnv+"="+agentSocket)
 
 	// Start the process in the background.
 	if err := cmd.Start(); err != nil {
@@ -61,10 +55,11 @@ func startAgent(agentSocket, password string) error {
 		return fmt.Errorf("timed out waiting for agent socket")
 	}
 
-	return nil
+	_, err = messageAgent(agentSocket, "PASSPHRASE", passphrase)
+	return err
 }
 
-func runAgent(agentSocket string, password string) error {
+func runAgent(agentSocket string) error {
 	socketDir := filepath.Dir(agentSocket)
 	if err := os.MkdirAll(socketDir, dirPerms); err != nil {
 		return fmt.Errorf("failed to create socket directory: %v", err)
@@ -72,6 +67,7 @@ func runAgent(agentSocket string, password string) error {
 
 	os.Remove(agentSocket)
 
+	passphrase := ""
 	srv := redcon.NewServerNetwork(
 		"unix",
 		agentSocket,
@@ -86,8 +82,8 @@ func runAgent(agentSocket string, password string) error {
 
 				encryptedData := cmd.Args[1]
 
-				// Create an identity from the password.
-				identity, err := age.NewScryptIdentity(password)
+				// Create an identity from the passphrase.
+				identity, err := age.NewScryptIdentity(passphrase)
 				if err != nil {
 					conn.WriteError("ERR failed to create identity: " + err.Error())
 					return
@@ -110,8 +106,22 @@ func runAgent(agentSocket string, password string) error {
 
 				conn.WriteBulk(decryptedData)
 
+			case "PASSPHRASE":
+				if len(cmd.Args) != 2 {
+					conn.WriteError(`ERR wrong number of arguments for "passphrase" command`)
+					return
+				}
+
+				passphrase = string(cmd.Args[1])
+
+				conn.WriteString("OK")
+
 			case "PING":
 				conn.WriteString("PONG")
+
+			case "SHUTDOWN":
+				conn.WriteString("OK")
+				os.Exit(0)
 
 			default:
 				conn.WriteError(fmt.Sprintf("ERR unknown command %q", cmd.Args[0]))
@@ -136,7 +146,7 @@ func runAgent(agentSocket string, password string) error {
 	return srv.ListenServeAndSignal(errc)
 }
 
-func tryAgent(socketPath string, data []byte) (string, error) {
+func messageAgent(socketPath string, args ...string) (string, error) {
 	// Check socket security.
 	if err := checkSocketSecurity(socketPath); err != nil {
 		return "", fmt.Errorf("socket security check failed: %v", err)
@@ -162,10 +172,10 @@ func tryAgent(socketPath string, data []byte) (string, error) {
 		return "", fmt.Errorf("failed to ping agent: %v", err)
 	}
 
-	// Send the decrypt command.
-	cmd := client.Do(ctx, client.B().Arbitrary("DECRYPT", valkey.BinaryString(data)).Build())
+	// Send the command.
+	cmd := client.Do(ctx, client.B().Arbitrary(args...).Build())
 	if err := cmd.Error(); err != nil {
-		return "", fmt.Errorf("DECRYPT command failed: %v", err)
+		return "", fmt.Errorf("command failed: %v", err)
 	}
 
 	result, err := cmd.ToString()
@@ -174,6 +184,10 @@ func tryAgent(socketPath string, data []byte) (string, error) {
 	}
 
 	return string(result), nil
+}
+
+func decryptWithAgent(socketPath string, data []byte) (string, error) {
+	return messageAgent(socketPath, "DECRYPT", valkey.BinaryString(data))
 }
 
 func checkSocketSecurity(socketPath string) error {

@@ -80,16 +80,15 @@ const (
 	version         = "0.7.0"
 	waitForSocket   = 3 * time.Second
 
-	agentPasswordEnv = "PAGO_AGENT_PASSWORD"
-	clipEnv          = "PAGO_CLIP"
-	dataDirEnv       = "PAGO_DIR"
-	gitEnv           = "PAGO_GIT"
-	gitEmailEnv      = "GIT_AUTHOR_EMAIL"
-	gitNameEnv       = "GIT_AUTHOR_NAME"
-	lengthEnv        = "PAGO_LENGTH"
-	patternEnv       = "PAGO_PATTERN"
-	socketEnv        = "PAGO_SOCK"
-	timeoutEnv       = "PAGO_TIMEOUT"
+	clipEnv     = "PAGO_CLIP"
+	dataDirEnv  = "PAGO_DIR"
+	gitEnv      = "PAGO_GIT"
+	gitEmailEnv = "GIT_AUTHOR_EMAIL"
+	gitNameEnv  = "GIT_AUTHOR_NAME"
+	lengthEnv   = "PAGO_LENGTH"
+	patternEnv  = "PAGO_PATTERN"
+	socketEnv   = "PAGO_SOCK"
+	timeoutEnv  = "PAGO_TIMEOUT"
 )
 
 var (
@@ -721,7 +720,7 @@ func decryptIdentities(agentSocket, identitiesPath string) (string, error) {
 
 	// If an agent socket is configured, try to use the agent.
 	if agentSocket != "" {
-		decrypted, err := tryAgent(agentSocket, encryptedData)
+		decrypted, err := decryptWithAgent(agentSocket, encryptedData)
 		if err == nil {
 			return decrypted, nil
 		}
@@ -732,12 +731,12 @@ func decryptIdentities(agentSocket, identitiesPath string) (string, error) {
 			return "", fmt.Errorf("failed to read password: %v", err)
 		}
 
-		if err := startAgent(agentSocket, password); err != nil {
+		if err := startAgentProcess(agentSocket, password); err != nil {
 			return "", fmt.Errorf("failed to start agent: %v", err)
 		}
 
 		// Try connecting to the new agent.
-		decrypted, err = tryAgent(agentSocket, encryptedData)
+		decrypted, err = decryptWithAgent(agentSocket, encryptedData)
 		if err == nil {
 			return decrypted, nil
 		}
