@@ -483,17 +483,21 @@ func askYesNo(prompt string) (bool, error) {
 	}
 	defer term.Restore(int(os.Stdin.Fd()), oldState)
 
-	// Read a single byte from the terminal.
-	var input [1]byte
-	_, err = os.Stdin.Read(input[:])
-	if err != nil {
-		return false, fmt.Errorf("failed to read input: %v", err)
+	answer := ""
+	for answer != "n" && answer != "y" {
+		// Read a single byte from the terminal.
+		var input [1]byte
+		_, err = os.Stdin.Read(input[:])
+		if err != nil {
+			return false, fmt.Errorf("failed to read input: %v", err)
+		}
+
+		answer = strings.ToLower(string(input[0]))
 	}
 
 	term.Restore(int(os.Stdin.Fd()), oldState)
 	fmt.Fprintln(os.Stderr)
 
-	answer := strings.ToLower(string(input[0]))
 	return answer == "y", nil
 }
 
