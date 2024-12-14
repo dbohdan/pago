@@ -128,7 +128,7 @@ func TestInit(t *testing.T) {
 		t.Errorf("Command `init` failed: %v", err)
 	}
 
-	for _, re := range []string{`/identities\n`, `/store\n`, `/\.age-recipients\n`} {
+	for _, re := range []string{`/store\n`, `/\.age-recipients\n`} {
 		if matched, _ := regexp.MatchString(re, tree); !matched {
 			t.Errorf("Expected %q in directory tree", re)
 		}
@@ -319,11 +319,11 @@ func TestShowTree(t *testing.T) {
 			}
 		}
 
-		stdout, _, err := runCommandEnv(
+		stdout, stderr, err := runCommandEnv(
 			[]string{"PAGO_DIR=" + dataDir},
 			"show",
 		)
-		return stdout, err
+		return stdout + "\n" + stderr, err
 	})
 	if err != nil {
 		t.Errorf("Command `show` failed: %v", err)

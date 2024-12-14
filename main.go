@@ -154,7 +154,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 
 	if config.Git {
 		if err := commit(
-			config.DataDir,
+			config.Store,
 			config.GitName,
 			config.GitEmail,
 			fmt.Sprintf("add %q", cmd.Name),
@@ -273,7 +273,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 
 	if config.Git {
 		if err := commit(
-			config.DataDir,
+			config.Store,
 			config.GitName,
 			config.GitEmail,
 			fmt.Sprintf("remove %q", cmd.Name),
@@ -405,16 +405,16 @@ func (cmd *InitCmd) Run(config *Config) error {
 	}
 
 	if config.Git {
-		if err := initGitRepo(config.DataDir); err != nil {
+		if err := initGitRepo(config.Store); err != nil {
 			return err
 		}
 
 		if err := commit(
-			config.DataDir,
+			config.Store,
 			config.GitName,
 			config.GitEmail,
 			"Initial commit",
-			[]string{config.Identities, config.Recipients},
+			[]string{config.Recipients},
 		); err != nil {
 			return err
 		}
