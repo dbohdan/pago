@@ -33,7 +33,7 @@ func (cmd *AgentCmd) Run(config *Config) error {
 	return runAgent(config.Socket)
 }
 
-func startAgentProcess(agentSocket, passphrase string) error {
+func startAgentProcess(agentSocket, identitiesText string) error {
 	// The agent is the same executable.
 	exe, err := os.Executable()
 	if err != nil {
@@ -55,7 +55,7 @@ func startAgentProcess(agentSocket, passphrase string) error {
 		return fmt.Errorf("timed out waiting for agent socket")
 	}
 
-	_, err = messageAgent(agentSocket, "PASSPHRASE", passphrase)
+	_, err = messageAgent(agentSocket, "IDENTITIES", identitiesText)
 	return err
 }
 
@@ -67,7 +67,7 @@ func runAgent(agentSocket string) error {
 
 	os.Remove(agentSocket)
 
-	passphrase := ""
+	identities := []age.Identity{}
 	srv := redcon.NewServerNetwork(
 		"unix",
 		agentSocket,
@@ -82,16 +82,9 @@ func runAgent(agentSocket string) error {
 
 				encryptedData := cmd.Args[1]
 
-				// Create an identity from the passphrase.
-				identity, err := age.NewScryptIdentity(passphrase)
-				if err != nil {
-					conn.WriteError("ERR failed to create identity: " + err.Error())
-					return
-				}
-
 				// Decrypt the data.
 				reader := bytes.NewReader(encryptedData)
-				decryptedReader, err := wrapDecrypt(reader, identity)
+				decryptedReader, err := wrapDecrypt(reader, identities...)
 				if err != nil {
 					conn.WriteError("ERR failed to decrypt: " + err.Error())
 					return
@@ -106,13 +99,20 @@ func runAgent(agentSocket string) error {
 
 				conn.WriteBulk(decryptedData)
 
-			case "PASSPHRASE":
+			case "IDENTITIES":
 				if len(cmd.Args) != 2 {
-					conn.WriteError(`ERR wrong number of arguments for "passphrase" command`)
+					conn.WriteError(`ERR wrong number of arguments for "identities" command`)
 					return
 				}
 
-				passphrase = string(cmd.Args[1])
+				identitiesText := string(cmd.Args[1])
+
+				newIdentities, err := age.ParseIdentities(strings.NewReader(identitiesText))
+				if err != nil {
+					conn.WriteError(`ERR failed to parse identities`)
+					return
+				}
+				identities = newIdentities
 
 				conn.WriteString("OK")
 
@@ -146,14 +146,14 @@ func runAgent(agentSocket string) error {
 	return srv.ListenServeAndSignal(errc)
 }
 
-func messageAgent(socketPath string, args ...string) (string, error) {
+func messageAgent(agentSocket string, args ...string) (string, error) {
 	// Check socket security.
-	if err := checkSocketSecurity(socketPath); err != nil {
+	if err := checkSocketSecurity(agentSocket); err != nil {
 		return "", fmt.Errorf("socket security check failed: %v", err)
 	}
 
 	// Connect to the server.
-	opts, err := valkey.ParseURL("unix://" + socketPath)
+	opts, err := valkey.ParseURL("unix://" + agentSocket)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse socket URL: %v", err)
 	}
@@ -171,6 +171,9 @@ func messageAgent(socketPath string, args ...string) (string, error) {
 	if err := client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
 		return "", fmt.Errorf("failed to ping agent: %v", err)
 	}
+	if len(args) == 0 {
+		return "", nil
+	}
 
 	// Send the command.
 	cmd := client.Do(ctx, client.B().Arbitrary(args...).Build())
@@ -186,12 +189,17 @@ func messageAgent(socketPath string, args ...string) (string, error) {
 	return string(result), nil
 }
 
-func decryptWithAgent(socketPath string, data []byte) (string, error) {
-	return messageAgent(socketPath, "DECRYPT", valkey.BinaryString(data))
+func pingAgent(agentSocket string) error {
+	_, err := messageAgent(agentSocket)
+	return err
 }
 
-func checkSocketSecurity(socketPath string) error {
-	info, err := os.Stat(socketPath)
+func decryptWithAgent(agentSocket string, data []byte) (string, error) {
+	return messageAgent(agentSocket, "DECRYPT", valkey.BinaryString(data))
+}
+
+func checkSocketSecurity(agentSocket string) error {
+	info, err := os.Stat(agentSocket)
 	if err != nil {
 		return fmt.Errorf("failed to stat socket: %v", err)
 	}

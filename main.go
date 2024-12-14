@@ -728,45 +728,18 @@ func wrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
 	return age.Decrypt(r, identities...)
 }
 
-func decryptIdentities(agentSocket, identitiesPath string) (string, error) {
+func decryptIdentities(identitiesPath string) (string, error) {
 	encryptedData, err := os.ReadFile(identitiesPath)
 	if err != nil {
-		return "", fmt.Errorf("failed to open identities file: %v", err)
+		return "", fmt.Errorf("failed to read identities file: %v", err)
 	}
 
-	// If an agent socket is configured, try to use the agent.
-	if agentSocket != "" {
-		decrypted, err := decryptWithAgent(agentSocket, encryptedData)
-		if err == nil {
-			return decrypted, nil
-		}
-
-		// If we couldn't connect, get a password and start a new agent.
-		password, err := secureRead("Enter password to unlock identities: ")
-		if err != nil {
-			return "", fmt.Errorf("failed to read password: %v", err)
-		}
-
-		if err := startAgentProcess(agentSocket, password); err != nil {
-			return "", fmt.Errorf("failed to start agent: %v", err)
-		}
-
-		// Try connecting to the new agent.
-		decrypted, err = decryptWithAgent(agentSocket, encryptedData)
-		if err == nil {
-			return decrypted, nil
-		}
-
-		return "", fmt.Errorf("failed to use agent: %v", err)
-	}
-
-	// When no agent socket is configured, decrypt directly.
 	password, err := secureRead("Enter password to unlock identities: ")
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %v", err)
 	}
 
-	// Create a password-based identity and decrypt the private keys with it.
+	// Create a passphrase-based identity and decrypt the private keys with it.
 	identity, err := age.NewScryptIdentity(password)
 	if err != nil {
 		return "", fmt.Errorf("failed to create password-based identity: %v", err)
@@ -803,24 +776,47 @@ func waitUntilAvailable(path string, maximum time.Duration) error {
 }
 
 func decryptPassword(agentSocket, identities, passwordStore, name string) (string, error) {
+	encryptedData, err := os.ReadFile(passwordFile(passwordStore, name))
+	if err != nil {
+		return "", fmt.Errorf("failed to read password file: %v", err)
+	}
+
+	// If an agent socket is configured, try to use the agent.
+	if agentSocket != "" {
+		if err := pingAgent(agentSocket); err != nil {
+			// Ping failed.
+			// Attempt to start the agent.
+			identitiesText, err := decryptIdentities(identities)
+			if err != nil {
+				return "", err
+			}
+
+			if err := startAgentProcess(agentSocket, identitiesText); err != nil {
+				return "", fmt.Errorf("failed to start agent: %v", err)
+			}
+		}
+
+		password, err := decryptWithAgent(agentSocket, encryptedData)
+		if err != nil {
+			return "", err
+		}
+
+		return password, nil
+	}
+
+	// When no agent socket is configured, decrypt directly.
 	// Decrypt the password-protected identities file first.
-	identityFile, err := decryptIdentities(agentSocket, identities)
+	identitiesText, err := decryptIdentities(identities)
 	if err != nil {
 		return "", err
 	}
 
-	ids, err := age.ParseIdentities(strings.NewReader(identityFile))
+	ids, err := age.ParseIdentities(strings.NewReader(identitiesText))
 	if err != nil {
 		return "", fmt.Errorf("failed to parse identities: %v", err)
 	}
 
-	f, err := os.Open(passwordFile(passwordStore, name))
-	if err != nil {
-		return "", fmt.Errorf("failed to open encrypted file: %v", err)
-	}
-	defer f.Close()
-
-	r, err := wrapDecrypt(f, ids...)
+	r, err := wrapDecrypt(bytes.NewReader(encryptedData), ids...)
 	if err != nil {
 		return "", fmt.Errorf("failed to decrypt: %v", err)
 	}
