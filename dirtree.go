@@ -36,7 +36,10 @@ func dirTree(root string, transform func(name string, info os.FileInfo) (bool, s
 			return nil
 		}
 
-		parent := visited[filepath.Dir(name)]
+		parent, ok := visited[filepath.Dir(name)]
+		if !ok {
+			return nil
+		}
 
 		var newTree treeprint.Tree
 		if info.IsDir() {
