@@ -9,6 +9,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"crypto/rand"
 	"errors"
@@ -36,6 +37,7 @@ import (
 
 type CLI struct {
 	// Global options.
+	Confirm  bool   `env:"${confirmEnv}" default:"true" negatable:"" help:"Enter passwords twice"`
 	Dir      string `short:"d" env:"${dataDirEnv}" default:"${defaultDataDir}" help:"Store location (${env})"`
 	Git      bool   `env:"${gitEnv}" default:"true" negatable:"" help:"Commit to Git (${env})"`
 	GitEmail string `env:"${gitEmailEnv}" default:"${defaultGitEmail}" help:"Email for Git commits (${env})"`
@@ -56,6 +58,7 @@ type CLI struct {
 }
 
 type Config struct {
+	Confirm    bool
 	DataDir    string
 	Git        bool
 	GitEmail   string
@@ -81,6 +84,7 @@ const (
 	waitForSocket   = 3 * time.Second
 
 	clipEnv     = "PAGO_CLIP"
+	confirmEnv  = "PAGO_CONFIRM"
 	dataDirEnv  = "PAGO_DIR"
 	gitEnv      = "PAGO_GIT"
 	gitEmailEnv = "GIT_AUTHOR_EMAIL"
@@ -138,7 +142,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 	if generate {
 		password, err = generatePassword(cmd.Pattern, cmd.Length)
 	} else {
-		password, err = readNewPassword()
+		password, err = readNewPassword(config.Confirm)
 	}
 	if err != nil {
 		return err
@@ -361,7 +365,7 @@ func (cmd *InitCmd) Run(config *Config) error {
 	var buf bytes.Buffer
 	armorWriter := armor.NewWriter(&buf)
 
-	password, err := readNewPassword()
+	password, err := readNewPassword(config.Confirm)
 	if err != nil {
 		return fmt.Errorf("failed to read password: %v", err)
 	}
@@ -493,6 +497,7 @@ func initConfig(cli *CLI) (*Config, error) {
 	store := filepath.Join(cli.Dir, storePath)
 
 	config := Config{
+		Confirm:    cli.Confirm,
 		DataDir:    cli.Dir,
 		Git:        cli.Git,
 		GitEmail:   cli.GitEmail,
@@ -517,18 +522,27 @@ func exitWithError(format string, value any) {
 	os.Exit(1)
 }
 
-// Read a password from the terminal without echo.
+// Read a password without echo if standard input is a terminal.
 func secureRead(prompt string) (string, error) {
 	fmt.Fprint(os.Stderr, prompt)
-	password, err := term.ReadPassword(int(syscall.Stdin))
-	fmt.Fprintln(os.Stderr)
-	if err != nil {
-		return "", err
+
+	if term.IsTerminal(int(syscall.Stdin)) {
+		password, err := term.ReadPassword(int(syscall.Stdin))
+		fmt.Fprintln(os.Stderr)
+		if err != nil {
+			return "", err
+		}
+
+		return string(password), nil
 	}
 
-	return string(password), nil
-}
+	scanner := bufio.NewScanner(os.Stdin)
+	if !scanner.Scan() {
+		return "", scanner.Err()
+	}
 
+	return scanner.Text(), nil
+}
 func askYesNo(prompt string) (bool, error) {
 	fmt.Fprintf(os.Stderr, "%s [y/n]: ", prompt)
 
@@ -588,8 +602,8 @@ func generatePassword(pattern string, length int) (string, error) {
 	return password.String(), nil
 }
 
-// Ask the user to input a password twice.
-func readNewPassword() (string, error) {
+// Ask the user to input a password, twice if `confirm` is true.
+func readNewPassword(confirm bool) (string, error) {
 	pass, err := secureRead("Enter password: ")
 	if err != nil {
 		return "", err
@@ -599,13 +613,15 @@ func readNewPassword() (string, error) {
 		return "", fmt.Errorf("empty password")
 	}
 
-	pass2, err := secureRead("Enter password (again): ")
-	if err != nil {
-		return "", err
-	}
+	if confirm {
+		pass2, err := secureRead("Enter password (again): ")
+		if err != nil {
+			return "", err
+		}
 
-	if pass != pass2 {
-		return "", fmt.Errorf("passwords do not match")
+		if pass != pass2 {
+			return "", fmt.Errorf("passwords do not match")
+		}
 	}
 
 	return pass, nil
@@ -892,6 +908,7 @@ func main() {
 			"defaultSocket":   defaultSocket,
 
 			"clipEnv":     clipEnv,
+			"confirmEnv":  confirmEnv,
 			"dataDirEnv":  dataDirEnv,
 			"gitEnv":      gitEnv,
 			"gitEmailEnv": gitEmailEnv,
