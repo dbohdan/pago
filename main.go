@@ -43,13 +43,13 @@ type CLI struct {
 	GitEmail string `env:"${gitEmailEnv}" default:"${defaultGitEmail}" help:"Email for Git commits (${env})"`
 	GitName  string `env:"${gitNameEnv}" default:"${defaultGitName}" help:"Name for Git commits (${env})"`
 	Socket   string `short:"s" env:"${socketEnv}" default:"${defaultSocket}" help:"Agent socket path (blank to disable, ${env})"`
-	Verbose  bool   `hidden:"" help:"Print debugging information"`
+	Verbose  bool   `short:"v" hidden:"" help:"Print debugging information"`
 
 	// Commands.
 	Add      AddCmd      `cmd:"" aliases:"a" help:"Create new password entry"`
 	Agent    AgentCmd    `cmd:"" hidden:"" help:"Control the agent process"`
 	Clip     ClipCmd     `cmd:"" aliases:"c" help:"Copy entry to clipboard"`
-	Delete   DeleteCmd   `cmd:"" aliases:"d,del" help:"Delete password entry"`
+	Delete   DeleteCmd   `cmd:"" aliases:"d,del,rm" help:"Delete password entry"`
 	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
 	Init     InitCmd     `cmd:"" help:"Create a new passwore store"`
