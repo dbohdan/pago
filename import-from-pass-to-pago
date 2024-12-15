@@ -39,7 +39,7 @@ for file in ./*.gpg ./**/*.gpg; do
     name=${no_ext#./*}
     ${PASS:-pass} show "$name" | ${PAGO:-pago} add "$name" \
         --dir "$dest" \
-        --input \
+        --multiline \
         --no-confirm \
         --no-git \
         ;
