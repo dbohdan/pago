@@ -111,6 +111,7 @@ type AddCmd struct {
 	Length  int    `short:"l" env:"${lengthEnv}" default:"${defaultLength}" help:"Password length (${env})"`
 	Pattern string `short:"p" env:"${patternEnv}" default:"${defaultPattern}" help:"Password pattern (regular expression, ${env})"`
 
+	Force     bool `short:"f" help:"Overwrite existing entry"`
 	Input     bool `short:"i" help:"Input the password manually" xor:"mode"`
 	Multiline bool `short:"m" help:"Read password from stdin until EOF" xor:"mode"`
 	Random    bool `short:"r" help:"Generate a random password" xor:"mode"`
@@ -126,7 +127,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	if passwordExists(config.Store, cmd.Name) {
+	if !cmd.Force && passwordExists(config.Store, cmd.Name) {
 		return fmt.Errorf("entry already exists: %v", cmd.Name)
 	}
 
