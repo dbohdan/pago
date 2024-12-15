@@ -217,6 +217,7 @@ func TestDelete(t *testing.T) {
 		t.Error("Expected no output")
 	}
 }
+
 func TestFind(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		for _, name := range []string{"foo", "bar", "baz"} {
@@ -239,6 +240,23 @@ func TestFind(t *testing.T) {
 	re := `^bar\nbaz$`
 	if matched, _ := regexp.MatchString(re, strings.TrimSpace(output)); !matched {
 		t.Errorf("Expected %q in stdout", re)
+	}
+}
+
+func TestInfoDir(t *testing.T) {
+	output, err := withPagoDir(func(dataDir string) (string, error) {
+		stdout, stderr, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"info", "dir",
+		)
+		return stdout + "\n" + stderr, err
+	})
+	if err != nil {
+		t.Errorf("Command `info dir` failed: %v", err)
+	}
+
+	if matched, _ := regexp.MatchString(`^/`, output); !matched {
+		t.Error("Expected absolute path in output")
 	}
 }
 

@@ -53,6 +53,7 @@ type CLI struct {
 	Delete   DeleteCmd   `cmd:"" aliases:"d,del,rm" help:"Delete password entry"`
 	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
+	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
 	Init     InitCmd     `cmd:"" help:"Create a new passwore store"`
 	Rewrap   RewrapCmd   `cmd:"" help:"Change the password for the identities file"`
 	Show     ShowCmd     `cmd:"" aliases:"s" help:"Show password for entry or list entries"`
@@ -362,6 +363,22 @@ func (cmd *GenerateCmd) Run(config *Config) error {
 		return err
 	}
 	fmt.Println(password)
+	return nil
+}
+
+type InfoCmd struct {
+	Dir DirCmd `cmd:"" help:"Show data directory path"`
+}
+
+type DirCmd struct{}
+
+func (cmd *DirCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	fmt.Println(config.DataDir)
+
 	return nil
 }
 
