@@ -111,8 +111,9 @@ type AddCmd struct {
 	Length  int    `short:"l" env:"${lengthEnv}" default:"${defaultLength}" help:"Password length (${env})"`
 	Pattern string `short:"p" env:"${patternEnv}" default:"${defaultPattern}" help:"Password pattern (regular expression, ${env})"`
 
-	Input  bool `short:"i" help:"Input the password manually" xor:"mode"`
-	Random bool `short:"r" help:"Generate a random password" xor:"mode"`
+	Input     bool `short:"i" help:"Input the password manually" xor:"mode"`
+	Multiline bool `short:"m" help:"Read password from stdin until EOF" xor:"mode"`
+	Random    bool `short:"r" help:"Generate a random password" xor:"mode"`
 }
 
 func printRepr(value any) {
@@ -129,23 +130,36 @@ func (cmd *AddCmd) Run(config *Config) error {
 		return fmt.Errorf("entry already exists: %v", cmd.Name)
 	}
 
-	var generate bool
+	var password string
 	var err error
 
-	if cmd.Input || cmd.Random {
-		generate = cmd.Random
-	} else {
-		generate, err = askYesNo("Generate a password?")
-		if err != nil {
-			return err
-		}
-	}
+	if cmd.Multiline {
+		fmt.Fprintln(os.Stderr, "Reading password from stdin until EOF.")
 
-	password := ""
-	if generate {
-		password, err = generatePassword(cmd.Pattern, cmd.Length)
+		var buf bytes.Buffer
+		if _, err := io.Copy(&buf, os.Stdin); err != nil {
+			return fmt.Errorf("failed to read from stdin: %v", err)
+		}
+
+		password = buf.String()
 	} else {
-		password, err = readNewPassword(config.Confirm)
+		// Either generate a password or use input with confirmation.
+		var generate bool
+
+		if cmd.Input || cmd.Random {
+			generate = cmd.Random
+		} else {
+			generate, err = askYesNo("Generate a password?")
+			if err != nil {
+				return err
+			}
+		}
+
+		if generate {
+			password, err = generatePassword(cmd.Pattern, cmd.Length)
+		} else {
+			password, err = readNewPassword(config.Confirm)
+		}
 	}
 	if err != nil {
 		return err

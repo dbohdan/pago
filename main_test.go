@@ -151,6 +151,27 @@ func TestAdd(t *testing.T) {
 	}
 }
 
+func TestAddMultiline(t *testing.T) {
+	output, err := withPagoDir(func(dataDir string) (string, error) {
+		cmd := exec.Command(commandPago, "--dir", dataDir, "add", "multiline-test", "--multiline")
+		cmd.Stdin = strings.NewReader("line1\nline2\nline3")
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+
+		return stdout.String() + "\n" + stderr.String(), err
+	})
+	if err != nil {
+		t.Errorf("Command `add --multiline` failed: %v", err)
+	}
+
+	re := "Reading password from stdin until EOF"
+	if matched, _ := regexp.MatchString(re, output); !matched {
+		t.Errorf("Expected %q in output", re)
+	}
+}
+
 func TestClip(t *testing.T) {
 	_, err := withPagoDir(func(dataDir string) (string, error) {
 		stdout, stderr, err := runCommandEnv(
