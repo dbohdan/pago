@@ -169,14 +169,20 @@ func (cmd *AddCmd) Run(config *Config) error {
 }
 
 type AgentCmd struct {
-	Run   RunCmd   `cmd:"" help:"Run the agent"`
-	Start StartCmd `cmd:"" help:"Start the agent process"`
-	Stop  StopCmd  `cmd:"" help:"Stop the agent process"`
+	Restart RestartCmd `cmd:"" help:"Restart the agent process"`
+	Run     RunCmd     `cmd:"" help:"Run the agent"`
+	Start   StartCmd   `cmd:"" help:"Start the agent process"`
+	Status  StatusCmd  `cmd:"" help:"Check if agent is running"`
+	Stop    StopCmd    `cmd:"" help:"Stop the agent process"`
 }
+
+type RestartCmd struct{}
 
 type RunCmd struct{}
 
 type StartCmd struct{}
+
+type StatusCmd struct{}
 
 type StopCmd struct{}
 

@@ -13,11 +13,19 @@ import (
 
 var defaultSocket = ""
 
+func (cmd *RestartCmd) Run(config *Config) error {
+	return fmt.Errorf("not implemented on Windows")
+}
+
 func (cmd *RunCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
 	}
 
+	return fmt.Errorf("not implemented on Windows")
+}
+
+func (cmd *StatusCmd) Run(config *Config) error {
 	return fmt.Errorf("not implemented on Windows")
 }
 

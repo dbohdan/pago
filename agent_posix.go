@@ -25,6 +25,21 @@ import (
 
 var defaultSocket = filepath.Join(defaultCacheDir, agentSocketPath)
 
+func (cmd *RestartCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	_, _ = messageAgent(config.Socket, "SHUTDOWN")
+
+	identitiesText, err := decryptIdentities(config.Identities)
+	if err != nil {
+		return err
+	}
+
+	return startAgentProcess(config.Socket, identitiesText)
+}
+
 func (cmd *RunCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
@@ -48,6 +63,21 @@ func (cmd *StartCmd) Run(config *Config) error {
 	}
 
 	return startAgentProcess(config.Socket, identitiesText)
+}
+
+func (cmd *StatusCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	err := pingAgent(config.Socket)
+	if err == nil {
+		os.Exit(0)
+	} else {
+		os.Exit(1)
+	}
+
+	return nil
 }
 
 func (cmd *StopCmd) Run(config *Config) error {
