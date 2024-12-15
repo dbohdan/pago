@@ -66,7 +66,7 @@ func startAgentProcess(agentSocket, identitiesText string) error {
 		return fmt.Errorf("failed to get executable path: %v", err)
 	}
 
-	cmd := exec.Command(exe, "agent", "run")
+	cmd := exec.Command(exe, "agent", "run", "--socket", agentSocket)
 
 	// Start the process in the background.
 	if err := cmd.Start(); err != nil {
