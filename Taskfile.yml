@@ -24,7 +24,7 @@ tasks:
   build_pago:
     desc: 'Build the pago binary'
     cmds:
-      - cmd: go build
+      - cmd: go build -trimpath
     sources:
       - '*.go'
     generates:
