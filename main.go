@@ -31,6 +31,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/alecthomas/repr"
 	"github.com/anmitsu/go-shlex"
+	"github.com/ktr0731/go-fuzzyfinder"
 
 	gitConfig "github.com/go-git/go-git/v5/config"
 )
@@ -306,6 +307,26 @@ type FindCmd struct {
 	Pattern string `arg:"" default:"" help:"Pattern to search for (regular expression)"`
 }
 
+// Return a function that filters filenames entries.
+func passwordFilter(root string, pattern *regexp.Regexp) func(name string, info os.FileInfo) (bool, string) {
+	return func(name string, info os.FileInfo) (bool, string) {
+		if info.IsDir() || !strings.HasSuffix(name, ageExt) {
+			return false, ""
+		}
+
+		displayName := name
+		displayName = strings.TrimPrefix(displayName, root)
+		displayName = strings.TrimPrefix(displayName, "/")
+		displayName = strings.TrimSuffix(displayName, ageExt)
+
+		if pattern != nil && !pattern.MatchString(displayName) {
+			return false, ""
+		}
+
+		return true, displayName
+	}
+}
+
 func (cmd *FindCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
@@ -316,22 +337,7 @@ func (cmd *FindCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to compile regular expression: %v", err)
 	}
 
-	list, err := listFiles(config.Store, func(name string, info os.FileInfo) (bool, string) {
-		if info.IsDir() || !strings.HasSuffix(name, ageExt) {
-			return false, ""
-		}
-
-		displayName := name
-		displayName = strings.TrimPrefix(displayName, config.Store)
-		displayName = strings.TrimPrefix(displayName, "/")
-		displayName = strings.TrimSuffix(displayName, ageExt)
-
-		if !pattern.MatchString(displayName) {
-			return false, ""
-		}
-
-		return true, displayName
-	})
+	list, err := listFiles(config.Store, passwordFilter(config.Store, pattern))
 	if err != nil {
 		return fmt.Errorf("failed to search entries: %v", err)
 	}
@@ -441,6 +447,7 @@ func (cmd *InitCmd) Run(config *Config) error {
 
 type ShowCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
+	Pick bool   `short:"p" help:"Pick entry using fuzzy finder"`
 }
 
 func printStoreTree(store string) error {
@@ -469,11 +476,42 @@ func (cmd *ShowCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	if cmd.Name == "" {
+	if !cmd.Pick && cmd.Name == "" {
 		return printStoreTree(config.Store)
 	}
 
-	if !passwordExists(config.Store, cmd.Name) {
+	name := cmd.Name
+	if cmd.Pick {
+		// Create a list of all passwords.
+		list, err := listFiles(config.Store, passwordFilter(config.Store, nil))
+		if err != nil {
+			return fmt.Errorf("failed to list passwords: %v", err)
+		}
+
+		if len(list) == 0 {
+			return fmt.Errorf("no password entries found")
+		}
+
+		// Show an interactive fuzzy finder.
+		idx, err := fuzzyfinder.Find(
+			list,
+			func(i int) string {
+				return list[i]
+			},
+			fuzzyfinder.WithQuery(name),
+		)
+		if err != nil {
+			if errors.Is(fuzzyfinder.ErrAbort, err) {
+				return nil
+			} else {
+				return fmt.Errorf("fuzzy finder failed: %v", err)
+			}
+		}
+
+		name = list[idx]
+	}
+
+	if !passwordExists(config.Store, name) {
 		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
 	}
 
@@ -481,7 +519,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 		config.Socket,
 		config.Identities,
 		config.Store,
-		cmd.Name,
+		name,
 	)
 	if err != nil {
 		return err
