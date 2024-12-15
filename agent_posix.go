@@ -86,6 +86,10 @@ func startAgentProcess(agentSocket, identitiesText string) error {
 }
 
 func runAgent(agentSocket string) error {
+	if err := pingAgent(agentSocket); err == nil {
+		return fmt.Errorf("found agent responding on socket")
+	}
+
 	socketDir := filepath.Dir(agentSocket)
 	if err := os.MkdirAll(socketDir, dirPerms); err != nil {
 		return fmt.Errorf("failed to create socket directory: %v", err)
