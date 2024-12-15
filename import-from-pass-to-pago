@@ -1,13 +1,36 @@
 #! /usr/bin/env bash
-set -eu
+# A tool for importing the password repository from pass to pago.
+#
+# License: MIT.
+# See the file `LICENSE`.
+set -euo pipefail
 
 src=${1:-}
 dest=${2:-}
 if [[ ! -d $src || ! -d $dest ]]; then
-    printf 'usage: %s <pass-dir> <pago-dir>\n\n' "$(basename "$0")"
-    printf 'The pago directory must be initialized,'
-    printf ' and the pago agent must be running.\n'
+    cat <<EOF
+usage: $(basename "$0") <pass-dir> <pago-dir>
+
+Requirements:
+- git(1)
+- A pago directory initialized *without Git* (\`pago init --no-git\`)
+- The pago agent running
+EOF
     exit 2
+fi
+
+git_src=0
+[[ -d $src/.git/ ]] && git_src=1
+recips=.age-recipients
+
+cd "$dest/store/"
+if [[ $git_src -eq 1 ]]; then
+    mv "$recips" ..
+    git clone "$src" "$dest/store"
+    mv ../"$recips" .
+else
+    printf "no '%s/.git/' - not cloning to '%s'\n" "$src" "$dest"
+    git init
 fi
 
 cd "$src"
@@ -18,5 +41,17 @@ for file in ./*.gpg ./**/*.gpg; do
         --dir "$dest" \
         --input \
         --no-confirm \
+        --no-git \
         ;
 done
+
+cd "$dest/store/"
+if [[ $git_src -eq 1 ]]; then
+    rm -f ./*.gpg ./**/*.gpg ./.gpg-id
+fi
+
+git add "$recips"
+git add ./*.age
+git add ./**/*.age || :
+
+git commit -m 'Migrate to pago'
