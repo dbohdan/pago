@@ -47,7 +47,7 @@ type CLI struct {
 
 	// Commands.
 	Add      AddCmd      `cmd:"" aliases:"a" help:"Create new password entry"`
-	Agent    AgentCmd    `cmd:"" hidden:"" help:"Run the agent process"`
+	Agent    AgentCmd    `cmd:"" hidden:"" help:"Control the agent process"`
 	Clip     ClipCmd     `cmd:"" aliases:"c" help:"Copy entry to clipboard"`
 	Delete   DeleteCmd   `cmd:"" aliases:"d,del" help:"Delete password entry"`
 	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
@@ -168,7 +168,17 @@ func (cmd *AddCmd) Run(config *Config) error {
 	return nil
 }
 
-type AgentCmd struct{}
+type AgentCmd struct {
+	Run   RunCmd   `cmd:"" help:"Run the agent"`
+	Start StartCmd `cmd:"" help:"Start the agent process"`
+	Stop  StopCmd  `cmd:"" help:"Stop the agent process"`
+}
+
+type RunCmd struct{}
+
+type StartCmd struct{}
+
+type StopCmd struct{}
 
 type ClipCmd struct {
 	Name string `arg:"" help:"Name of the password entry"`

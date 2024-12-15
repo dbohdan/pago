@@ -25,12 +25,38 @@ import (
 
 var defaultSocket = filepath.Join(defaultCacheDir, agentSocketPath)
 
-func (cmd *AgentCmd) Run(config *Config) error {
+func (cmd *RunCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
 	}
 
 	return runAgent(config.Socket)
+}
+
+func (cmd *StartCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	if err := pingAgent(config.Socket); err == nil {
+		return fmt.Errorf("found agent responding on socket")
+	}
+
+	identitiesText, err := decryptIdentities(config.Identities)
+	if err != nil {
+		return err
+	}
+
+	return startAgentProcess(config.Socket, identitiesText)
+}
+
+func (cmd *StopCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	_, err := messageAgent(config.Socket, "SHUTDOWN")
+	return err
 }
 
 func startAgentProcess(agentSocket, identitiesText string) error {
@@ -40,7 +66,7 @@ func startAgentProcess(agentSocket, identitiesText string) error {
 		return fmt.Errorf("failed to get executable path: %v", err)
 	}
 
-	cmd := exec.Command(exe, "agent")
+	cmd := exec.Command(exe, "agent", "run")
 
 	// Start the process in the background.
 	if err := cmd.Start(); err != nil {
