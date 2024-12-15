@@ -151,6 +151,8 @@ func runAgent(agentSocket string) error {
 
 			case "SHUTDOWN":
 				conn.WriteString("OK")
+				conn.Close()
+
 				os.Exit(0)
 
 			default:
