@@ -54,6 +54,7 @@ type CLI struct {
 	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
 	Init     InitCmd     `cmd:"" help:"Create a new passwore store"`
+	Rewrap   RewrapCmd   `cmd:"" help:"Change the password for the identities file"`
 	Show     ShowCmd     `cmd:"" aliases:"s" help:"Show password for entry or list entries"`
 	Version  VersionCmd  `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
 }
@@ -442,6 +443,56 @@ func (cmd *InitCmd) Run(config *Config) error {
 		}
 	}
 
+	return nil
+}
+
+type RewrapCmd struct{}
+
+func (cmd *RewrapCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	identitiesText, err := decryptIdentities(config.Identities)
+	if err != nil {
+		return err
+	}
+
+	newPassword, err := readNewPassword(config.Confirm)
+	if err != nil {
+		return err
+	}
+
+	var buf bytes.Buffer
+	armorWriter := armor.NewWriter(&buf)
+
+	recip, err := age.NewScryptRecipient(newPassword)
+	if err != nil {
+		return fmt.Errorf("failed to create scrypt recipient: %w", err)
+	}
+
+	w, err := age.Encrypt(armorWriter, recip)
+	if err != nil {
+		return fmt.Errorf("failed to create encrypted writer: %w", err)
+	}
+
+	_, err = w.Write([]byte(identitiesText))
+	if err != nil {
+		return fmt.Errorf("failed to write identity: %w", err)
+	}
+
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to close encrypted writer: %w", err)
+	}
+	if err := armorWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close armor writer: %w", err)
+	}
+
+	if err := os.WriteFile(config.Identities, buf.Bytes(), filePerms); err != nil {
+		return fmt.Errorf("failed to write identities file: %w", err)
+	}
+
+	fmt.Fprintln(os.Stderr, "Identities file reencrypted.")
 	return nil
 }
 

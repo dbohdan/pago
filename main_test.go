@@ -57,17 +57,15 @@ func withPagoDir(test func(dataDir string) (string, error)) (string, error) {
 	cmd.Stdout = c.Tty()
 	cmd.Stderr = c.Tty()
 
-	go func() {
-		c.ExpectString("Enter password")
-		c.SendLine(password)
-		c.ExpectString("again")
-		c.SendLine(password)
-	}()
-
 	err = cmd.Start()
 	if err != nil {
 		return "", fmt.Errorf("failed to start command: %w", err)
 	}
+
+	c.ExpectString("Enter password")
+	c.SendLine(password)
+	c.ExpectString("again")
+	c.SendLine(password)
 
 	err = cmd.Wait()
 	if err != nil {
@@ -174,16 +172,14 @@ func TestClip(t *testing.T) {
 		cmd.Stdout = c.Tty()
 		cmd.Stderr = c.Tty()
 
-		go func() {
-			c.ExpectString("Enter password")
-			c.SendLine(password)
-			c.ExpectString("Clearing clipboard in 1 second")
-		}()
-
 		err = cmd.Start()
 		if err != nil {
 			return "", fmt.Errorf("failed to start command: %w", err)
 		}
+
+		c.ExpectString("Enter password")
+		c.SendLine(password)
+		c.ExpectString("Clearing clipboard in 1 second")
 
 		err = cmd.Wait()
 		if err != nil {
@@ -261,6 +257,86 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
+func TestRewrap(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		c, err := expect.NewConsole()
+		if err != nil {
+			return "", fmt.Errorf("failed to create console: %w", err)
+		}
+		defer c.Close()
+
+		newPassword := "latest"
+		cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "rewrap")
+		cmd.Stdin = c.Tty()
+		cmd.Stdout = c.Tty()
+		cmd.Stderr = c.Tty()
+
+		err = cmd.Start()
+		if err != nil {
+			return "", fmt.Errorf("failed to start rewrap command: %w", err)
+		}
+
+		_, err = c.ExpectString("Enter password")
+		if err != nil {
+			return "", fmt.Errorf("failed to get first password prompt: %w", err)
+		}
+		c.SendLine(password)
+
+		_, err = c.ExpectString("Enter password")
+		if err != nil {
+			return "", fmt.Errorf("failed to get second password prompt: %w", err)
+		}
+		c.SendLine(newPassword)
+
+		_, err = c.ExpectString("again")
+		if err != nil {
+			return "", fmt.Errorf("failed to get confirmation prompt: %w", err)
+		}
+		c.SendLine(newPassword)
+
+		err = cmd.Wait()
+		if err != nil {
+			return "", fmt.Errorf("rewrap failed: %w", err)
+		}
+
+		stdout, stderr, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "foo", "--length", "32", "--pattern", "[a]", "--random",
+		)
+		if err != nil {
+			return stdout + "\n" + stderr, err
+		}
+
+		// Verify we can decrypt with the new password.
+		cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "foo")
+		cmd.Stdin = c.Tty()
+		cmd.Stdout = c.Tty()
+		cmd.Stderr = c.Tty()
+
+		err = cmd.Start()
+		if err != nil {
+			return "", fmt.Errorf("failed to run `show` command: %w", err)
+		}
+
+		_, err = c.ExpectString("Enter password")
+		if err != nil {
+			return "", fmt.Errorf("failed to get passworr prompt for `show`: %w", err)
+		}
+		c.SendLine(newPassword)
+
+		err = cmd.Wait()
+		if err != nil {
+			return "", fmt.Errorf("`show` failed: %w", err)
+		}
+
+		return "", nil
+	})
+
+	if err != nil {
+		t.Errorf("Command `rewrap` failed: %v", err)
+	}
+}
+
 func TestShowName(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		stdout, stderr, err := runCommandEnv(
@@ -283,15 +359,13 @@ func TestShowName(t *testing.T) {
 		cmd.Stdout = &buf
 		cmd.Stderr = c.Tty()
 
-		go func() {
-			c.ExpectString("Enter password")
-			c.SendLine(password)
-		}()
-
 		err = cmd.Start()
 		if err != nil {
 			return "", fmt.Errorf("failed to start command: %w", err)
 		}
+
+		c.ExpectString("Enter password")
+		c.SendLine(password)
 
 		err = cmd.Wait()
 		if err != nil {
