@@ -487,7 +487,10 @@ func (cmd *ShowCmd) Run(config *Config) error {
 		return err
 	}
 
-	fmt.Println(password)
+	fmt.Print(password)
+	if !strings.HasSuffix(password, "\n") {
+		fmt.Println()
+	}
 
 	return nil
 }
