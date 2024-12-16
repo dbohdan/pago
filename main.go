@@ -205,9 +205,10 @@ type StatusCmd struct{}
 type StopCmd struct{}
 
 type ClipCmd struct {
-	Name string `arg:"" help:"Name of the password entry"`
+	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
 	Command string `short:"c" env:"${clipEnv}" default:"${defaultClip}" help:"Command for copying text from stdin to clipboard (${env})"`
+	Pick    bool   `short:"p" help:"Pick entry using fuzzy finder"`
 	Timeout int    `short:"t" env:"${timeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable, ${env})"`
 }
 
@@ -232,11 +233,23 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	if !passwordExists(config.Store, cmd.Name) {
-		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
+	name := cmd.Name
+	if cmd.Pick {
+		picked, err := pickPassword(config.Store, name)
+		if err != nil {
+			return err
+		}
+		if picked == "" {
+			return nil
+		}
+		name = picked
 	}
 
-	password, err := decryptPassword(config.Socket, config.Identities, config.Store, cmd.Name)
+	if !passwordExists(config.Store, name) {
+		return fmt.Errorf("entry doesn't exist: %v", name)
+	}
+
+	password, err := decryptPassword(config.Socket, config.Identities, config.Store, name)
 	if err != nil {
 		return err
 	}
@@ -263,9 +276,10 @@ func (cmd *ClipCmd) Run(config *Config) error {
 }
 
 type DeleteCmd struct {
-	Name string `arg:"" help:"Name of the password entry"`
+	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
 	Force bool `short:"f" help:"Do not ask to confirm"`
+	Pick  bool `short:"p" help:"Pick entry using fuzzy finder"`
 }
 
 func (cmd *DeleteCmd) Run(config *Config) error {
@@ -273,8 +287,20 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	if !passwordExists(config.Store, cmd.Name) {
-		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
+	name := cmd.Name
+	if cmd.Pick {
+		picked, err := pickPassword(config.Store, name)
+		if err != nil {
+			return err
+		}
+		if picked == "" {
+			return nil
+		}
+		name = picked
+	}
+
+	if !passwordExists(config.Store, name) {
+		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
 	var choice bool
@@ -283,12 +309,12 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 	if cmd.Force {
 		choice = true
 	} else {
-		if choice, err = askYesNo(fmt.Sprintf("Delete entry '%s'?", cmd.Name)); !choice || err != nil {
+		if choice, err = askYesNo(fmt.Sprintf("Delete entry '%s'?", name)); !choice || err != nil {
 			return err
 		}
 	}
 
-	file := passwordFile(config.Store, cmd.Name)
+	file := passwordFile(config.Store, name)
 
 	if err := os.Remove(file); err != nil {
 		return fmt.Errorf("failed to delete entry: %v", err)
@@ -310,7 +336,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 			config.Store,
 			config.GitName,
 			config.GitEmail,
-			fmt.Sprintf("remove %q", cmd.Name),
+			fmt.Sprintf("remove %q", name),
 			[]string{file},
 		); err != nil {
 			return err
@@ -322,7 +348,8 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 
 type EditCmd struct {
 	Force bool   `short:"f" help:"Create the entry if it doesn't exist"`
-	Name  string `arg:"" help:"Name of the password entry"`
+	Name  string `arg:"" optional:"" help:"Name of the password entry"`
+	Pick  bool   `short:"p" help:"Pick entry using fuzzy finder"`
 }
 
 func (cmd *EditCmd) Run(config *Config) error {
@@ -330,17 +357,29 @@ func (cmd *EditCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
+	name := cmd.Name
+	if cmd.Pick {
+		picked, err := pickPassword(config.Store, name)
+		if err != nil {
+			return err
+		}
+		if picked == "" {
+			return nil
+		}
+		name = picked
+	}
+
 	var password string
 	var err error
 
-	if passwordExists(config.Store, cmd.Name) {
+	if passwordExists(config.Store, name) {
 		// Decrypt the existing password.
-		password, err = decryptPassword(config.Socket, config.Identities, config.Store, cmd.Name)
+		password, err = decryptPassword(config.Socket, config.Identities, config.Store, name)
 		if err != nil {
 			return err
 		}
 	} else if !cmd.Force {
-		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
+		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
 	text, err := Edit(password)
@@ -355,7 +394,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 	}
 
 	// Save the edited password.
-	if err := savePassword(config.Recipients, config.Store, cmd.Name, text); err != nil {
+	if err := savePassword(config.Recipients, config.Store, name, text); err != nil {
 		return err
 	}
 
@@ -364,8 +403,8 @@ func (cmd *EditCmd) Run(config *Config) error {
 			config.Store,
 			config.GitName,
 			config.GitEmail,
-			fmt.Sprintf("edit %q", cmd.Name),
-			[]string{passwordFile(config.Store, cmd.Name)},
+			fmt.Sprintf("edit %q", name),
+			[]string{passwordFile(config.Store, name)},
 		); err != nil {
 			return err
 		}
@@ -609,6 +648,36 @@ func printStoreTree(store string) error {
 	return nil
 }
 
+// Pick a password entry using fuzzy finder
+func pickPassword(store string, query string) (string, error) {
+	// Create a list of all passwords
+	list, err := listFiles(store, passwordFilter(store, nil))
+	if err != nil {
+		return "", fmt.Errorf("failed to list passwords: %v", err)
+	}
+
+	if len(list) == 0 {
+		return "", fmt.Errorf("no password entries found")
+	}
+
+	// Show an interactive fuzzy finder
+	idx, err := fuzzyfinder.Find(
+		list,
+		func(i int) string {
+			return list[i]
+		},
+		fuzzyfinder.WithQuery(query),
+	)
+	if err != nil {
+		if errors.Is(fuzzyfinder.ErrAbort, err) {
+			return "", nil
+		}
+		return "", fmt.Errorf("fuzzy finder failed: %v", err)
+	}
+
+	return list[idx], nil
+}
+
 func (cmd *ShowCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
@@ -620,33 +689,14 @@ func (cmd *ShowCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		// Create a list of all passwords.
-		list, err := listFiles(config.Store, passwordFilter(config.Store, nil))
+		picked, err := pickPassword(config.Store, name)
 		if err != nil {
-			return fmt.Errorf("failed to list passwords: %v", err)
+			return err
 		}
-
-		if len(list) == 0 {
-			return fmt.Errorf("no password entries found")
+		if picked == "" {
+			return nil
 		}
-
-		// Show an interactive fuzzy finder.
-		idx, err := fuzzyfinder.Find(
-			list,
-			func(i int) string {
-				return list[i]
-			},
-			fuzzyfinder.WithQuery(name),
-		)
-		if err != nil {
-			if errors.Is(fuzzyfinder.ErrAbort, err) {
-				return nil
-			} else {
-				return fmt.Errorf("fuzzy finder failed: %v", err)
-			}
-		}
-
-		name = list[idx]
+		name = picked
 	}
 
 	if !passwordExists(config.Store, name) {
