@@ -31,9 +31,8 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/alecthomas/repr"
 	"github.com/anmitsu/go-shlex"
-	"github.com/ktr0731/go-fuzzyfinder"
-
 	gitConfig "github.com/go-git/go-git/v5/config"
+	"github.com/ktr0731/go-fuzzyfinder"
 )
 
 type CLI struct {
@@ -51,6 +50,7 @@ type CLI struct {
 	Agent    AgentCmd    `cmd:"" hidden:"" help:"Control the agent process"`
 	Clip     ClipCmd     `cmd:"" aliases:"c" help:"Copy entry to clipboard"`
 	Delete   DeleteCmd   `cmd:"" aliases:"d,del,rm" help:"Delete password entry"`
+	Edit     EditCmd     `cmd:"" aliases:"e" help:"Edit password entry"`
 	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
 	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
@@ -317,6 +317,61 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 		}
 	}
 
+	return nil
+}
+
+type EditCmd struct {
+	Force bool   `short:"f" help:"Create the entry if it doesn't exist"`
+	Name  string `arg:"" help:"Name of the password entry"`
+}
+
+func (cmd *EditCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	var password string
+	var err error
+
+	if passwordExists(config.Store, cmd.Name) {
+		// Decrypt the existing password.
+		password, err = decryptPassword(config.Socket, config.Identities, config.Store, cmd.Name)
+		if err != nil {
+			return err
+		}
+	} else if !cmd.Force {
+		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
+	}
+
+	text, err := Edit(password)
+	fmt.Println()
+	if err != nil && !errors.Is(err, CancelError) {
+		return fmt.Errorf("editor failed: %v", err)
+	}
+
+	if text == password || errors.Is(err, CancelError) {
+		fmt.Fprintln(os.Stderr, "No changes made.")
+		return nil
+	}
+
+	// Save the edited password.
+	if err := savePassword(config.Recipients, config.Store, cmd.Name, text); err != nil {
+		return err
+	}
+
+	if config.Git {
+		if err := commit(
+			config.Store,
+			config.GitName,
+			config.GitEmail,
+			fmt.Sprintf("edit %q", cmd.Name),
+			[]string{passwordFile(config.Store, cmd.Name)},
+		); err != nil {
+			return err
+		}
+	}
+
+	fmt.Fprintln(os.Stderr, "Password updated.")
 	return nil
 }
 
