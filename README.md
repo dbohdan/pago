@@ -127,6 +127,9 @@ pago find fo
 
 # Select and entry interactively using a fuzzy finder
 pago show --pick
+
+# The same as `pago show --pick foo`. Starts the search with `foo`.
+pago pick foo
 ```
 
 ### Edit passwords

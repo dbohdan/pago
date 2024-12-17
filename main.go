@@ -50,6 +50,7 @@ type CLI struct {
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
 	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
 	Init     InitCmd     `cmd:"" help:"Create a new passwore store"`
+	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password for an entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
 	Rewrap   RewrapCmd   `cmd:"" help:"Change the password for the identities file"`
 	Show     ShowCmd     `cmd:"" aliases:"s" help:"Show password for entry or list entries"`
 	Version  VersionCmd  `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
@@ -546,6 +547,15 @@ func (cmd *InitCmd) Run(config *Config) error {
 	}
 
 	return nil
+}
+
+type PickCmd struct {
+	Name string `arg:"" optional:"" help:"Name of the password entry"`
+}
+
+func (cmd *PickCmd) Run(config *Config) error {
+	showCmd := &ShowCmd{Name: cmd.Name, Pick: true}
+	return showCmd.Run(config)
 }
 
 type RewrapCmd struct{}
