@@ -952,43 +952,22 @@ func savePassword(recipients, passwordStore, name, password string) error {
 
 // Returns a reader that can handle both armored and binary age files.
 func wrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
-	// Check if the input starts with an armor header.
-	seeker, ok := r.(io.Seeker)
-	if !ok {
-		return nil, fmt.Errorf("input must be seekable")
-	}
+	buffer := make([]byte, len(armor.Header))
 
-	// Read enough bytes to check for the armor header.
-	header := make([]byte, len(armor.Header))
-	_, err := io.ReadFull(r, header)
-	if err != nil {
+	// Check if the input starts with an armor header.
+	n, err := io.ReadFull(r, buffer)
+	if err != nil && !errors.Is(err, io.EOF) && n < len(armor.Header) {
 		return nil, fmt.Errorf("failed to read header: %v", err)
 	}
 
-	_, err = seeker.Seek(0, io.SeekStart)
-	if err != nil {
-		return nil, fmt.Errorf("failed to seek: %v", err)
+	armored := string(buffer[:n]) == armor.Header
+	r = io.MultiReader(bytes.NewReader(buffer[:n]), r)
+
+	if armored {
+		return age.Decrypt(armor.NewReader(r), identities...)
 	}
 
-	isArmored := string(header) == armor.Header
-
-	if isArmored {
-		armoredReader := armor.NewReader(r)
-		decryptedReader, err := age.Decrypt(armoredReader, identities...)
-		if err != nil {
-			return nil, fmt.Errorf("armored decryption failed: %v", err)
-		}
-
-		return decryptedReader, nil
-	}
-
-	// Try binary decryption.
-	decryptedReader, err := age.Decrypt(r, identities...)
-	if err != nil {
-		return nil, fmt.Errorf("binary decryption failed: %v", err)
-	}
-
-	return decryptedReader, nil
+	return age.Decrypt(r, identities...)
 }
 
 func decryptIdentities(identitiesPath string) (string, error) {
