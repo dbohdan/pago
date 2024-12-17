@@ -61,7 +61,7 @@ func (e editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (e editor) View() string {
 	return fmt.Sprintf(
-		"[ Ctrl+D: Save ] [ Esc: Cancel ]\n\n%s\n",
+		"[ Ctrl+D: Save ] [ Ctrl+V: Paste ] [ Esc: Cancel ]\n\n%s\n",
 		e.textarea.View(),
 	)
 }
