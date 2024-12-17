@@ -9,7 +9,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/rand"
 	"errors"
@@ -20,10 +19,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"syscall"
 	"time"
-
-	"golang.org/x/term"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
@@ -32,7 +28,6 @@ import (
 	"github.com/alecthomas/repr"
 	"github.com/anmitsu/go-shlex"
 	gitConfig "github.com/go-git/go-git/v5/config"
-	"github.com/ktr0731/go-fuzzyfinder"
 )
 
 type CLI struct {
@@ -419,26 +414,6 @@ type FindCmd struct {
 	Pattern string `arg:"" default:"" help:"Pattern to search for (regular expression)"`
 }
 
-// Return a function that filters filenames entries.
-func passwordFilter(root string, pattern *regexp.Regexp) func(name string, info os.FileInfo) (bool, string) {
-	return func(name string, info os.FileInfo) (bool, string) {
-		if info.IsDir() || !strings.HasSuffix(name, ageExt) {
-			return false, ""
-		}
-
-		displayName := name
-		displayName = strings.TrimPrefix(displayName, root)
-		displayName = strings.TrimPrefix(displayName, "/")
-		displayName = strings.TrimSuffix(displayName, ageExt)
-
-		if pattern != nil && !pattern.MatchString(displayName) {
-			return false, ""
-		}
-
-		return true, displayName
-	}
-}
-
 func (cmd *FindCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
@@ -628,57 +603,6 @@ type ShowCmd struct {
 	Pick bool   `short:"p" help:"Pick entry using fuzzy finder"`
 }
 
-func printStoreTree(store string) error {
-	tree, err := dirTree(store, func(name string, info os.FileInfo) (bool, string) {
-		if strings.HasPrefix(info.Name(), ".") {
-			return false, ""
-		}
-
-		displayName := strings.TrimSuffix(info.Name(), ageExt)
-		if info.IsDir() {
-			displayName += "/"
-		}
-
-		return true, displayName
-	})
-	if err != nil {
-		return fmt.Errorf("failed to build tree: %v", err)
-	}
-
-	fmt.Print(tree)
-	return nil
-}
-
-// Pick a password entry using fuzzy finder
-func pickPassword(store string, query string) (string, error) {
-	// Create a list of all passwords
-	list, err := listFiles(store, passwordFilter(store, nil))
-	if err != nil {
-		return "", fmt.Errorf("failed to list passwords: %v", err)
-	}
-
-	if len(list) == 0 {
-		return "", fmt.Errorf("no password entries found")
-	}
-
-	// Show an interactive fuzzy finder
-	idx, err := fuzzyfinder.Find(
-		list,
-		func(i int) string {
-			return list[i]
-		},
-		fuzzyfinder.WithQuery(query),
-	)
-	if err != nil {
-		if errors.Is(fuzzyfinder.ErrAbort, err) {
-			return "", nil
-		}
-		return "", fmt.Errorf("fuzzy finder failed: %v", err)
-	}
-
-	return list[idx], nil
-}
-
 func (cmd *ShowCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
@@ -768,55 +692,6 @@ func exitWithError(format string, value any) {
 	os.Exit(1)
 }
 
-// Read a password without echo if standard input is a terminal.
-func secureRead(prompt string) (string, error) {
-	fmt.Fprint(os.Stderr, prompt)
-
-	if term.IsTerminal(int(syscall.Stdin)) {
-		password, err := term.ReadPassword(int(syscall.Stdin))
-		fmt.Fprintln(os.Stderr)
-		if err != nil {
-			return "", err
-		}
-
-		return string(password), nil
-	}
-
-	scanner := bufio.NewScanner(os.Stdin)
-	if !scanner.Scan() {
-		return "", scanner.Err()
-	}
-
-	return scanner.Text(), nil
-}
-func askYesNo(prompt string) (bool, error) {
-	fmt.Fprintf(os.Stderr, "%s [y/n]: ", prompt)
-
-	// Save the terminal state to restore later.
-	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
-	if err != nil {
-		return false, fmt.Errorf("failed to make terminal raw: %v", err)
-	}
-	defer term.Restore(int(os.Stdin.Fd()), oldState)
-
-	answer := ""
-	for answer != "n" && answer != "y" {
-		// Read a single byte from the terminal.
-		var input [1]byte
-		_, err = os.Stdin.Read(input[:])
-		if err != nil {
-			return false, fmt.Errorf("failed to read input: %v", err)
-		}
-
-		answer = strings.ToLower(string(input[0]))
-	}
-
-	term.Restore(int(os.Stdin.Fd()), oldState)
-	fmt.Fprintln(os.Stderr)
-
-	return answer == "y", nil
-}
-
 // Generate a random password where each character matches a regular expression.
 func generatePassword(pattern string, length int) (string, error) {
 	regexpPattern, err := regexp.Compile(pattern)
@@ -848,31 +723,6 @@ func generatePassword(pattern string, length int) (string, error) {
 	return password.String(), nil
 }
 
-// Ask the user to input a password, twice if `confirm` is true.
-func readNewPassword(confirm bool) (string, error) {
-	pass, err := secureRead("Enter password: ")
-	if err != nil {
-		return "", err
-	}
-
-	if pass == "" {
-		return "", fmt.Errorf("empty password")
-	}
-
-	if confirm {
-		pass2, err := secureRead("Enter password (again): ")
-		if err != nil {
-			return "", err
-		}
-
-		if pass != pass2 {
-			return "", fmt.Errorf("passwords do not match")
-		}
-	}
-
-	return pass, nil
-}
-
 // Map a password's name to its file path.
 func passwordFile(passwordStore, name string) string {
 	return filepath.Join(passwordStore, name+ageExt)
@@ -885,119 +735,6 @@ func pathExists(path string) bool {
 
 func passwordExists(passwordStore, name string) bool {
 	return pathExists(passwordFile(passwordStore, name))
-}
-
-// Parse the entire text of an age recipients file.
-func parseRecipients(contents string) ([]age.Recipient, error) {
-	var recips []age.Recipient
-
-	for _, line := range strings.Split(contents, "\n") {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		recipient, err := age.ParseX25519Recipient(line)
-		if err != nil {
-			return nil, fmt.Errorf("invalid recipient: %v", err)
-		}
-
-		recips = append(recips, recipient)
-	}
-
-	return recips, nil
-}
-
-// Encrypt the password and save it to a file.
-func savePassword(recipients, passwordStore, name, password string) error {
-	recipientsData, err := os.ReadFile(recipients)
-	if err != nil {
-		return fmt.Errorf("failed to read recipients file: %v", err)
-	}
-
-	recips, err := parseRecipients(string(recipientsData))
-	if err != nil {
-		return err
-	}
-
-	dest := passwordFile(passwordStore, name)
-	err = os.MkdirAll(filepath.Dir(dest), dirPerms)
-
-	f, err := os.Create(dest)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %v", err)
-	}
-	defer f.Close()
-	armorWriter := armor.NewWriter(f)
-
-	w, err := age.Encrypt(armorWriter, recips...)
-	if err != nil {
-		return fmt.Errorf("failed to create encryption writer: %v", err)
-	}
-
-	if _, err := io.WriteString(w, password); err != nil {
-		return fmt.Errorf("failed to encrypt: %v", err)
-	}
-
-	if err := w.Close(); err != nil {
-		return fmt.Errorf("failed to finish encryption: %v", err)
-	}
-
-	if err := armorWriter.Close(); err != nil {
-		return fmt.Errorf("failed to close armor writer: %w", err)
-	}
-
-	return nil
-}
-
-// Returns a reader that can handle both armored and binary age files.
-func wrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
-	buffer := make([]byte, len(armor.Header))
-
-	// Check if the input starts with an armor header.
-	n, err := io.ReadFull(r, buffer)
-	if err != nil && !errors.Is(err, io.EOF) && n < len(armor.Header) {
-		return nil, fmt.Errorf("failed to read header: %v", err)
-	}
-
-	armored := string(buffer[:n]) == armor.Header
-	r = io.MultiReader(bytes.NewReader(buffer[:n]), r)
-
-	if armored {
-		return age.Decrypt(armor.NewReader(r), identities...)
-	}
-
-	return age.Decrypt(r, identities...)
-}
-
-func decryptIdentities(identitiesPath string) (string, error) {
-	encryptedData, err := os.ReadFile(identitiesPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read identities file: %v", err)
-	}
-
-	password, err := secureRead("Enter password to unlock identities: ")
-	if err != nil {
-		return "", fmt.Errorf("failed to read password: %v", err)
-	}
-
-	// Create a passphrase-based identity and decrypt the private keys with it.
-	identity, err := age.NewScryptIdentity(password)
-	if err != nil {
-		return "", fmt.Errorf("failed to create password-based identity: %v", err)
-	}
-
-	r, err := wrapDecrypt(bytes.NewReader(encryptedData), identity)
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt identities: %v", err)
-	}
-
-	decrypted, err := io.ReadAll(r)
-	if err != nil {
-		return "", fmt.Errorf("failed to read decrypted content: %v", err)
-	}
-
-	return string(decrypted), nil
 }
 
 func waitUntilAvailable(path string, maximum time.Duration) error {
@@ -1017,60 +754,6 @@ func waitUntilAvailable(path string, maximum time.Duration) error {
 	}
 }
 
-func decryptPassword(agentSocket, identities, passwordStore, name string) (string, error) {
-	encryptedData, err := os.ReadFile(passwordFile(passwordStore, name))
-	if err != nil {
-		return "", fmt.Errorf("failed to read password file: %v", err)
-	}
-
-	// If an agent socket is configured, try to use the agent.
-	if agentSocket != "" {
-		if err := pingAgent(agentSocket); err != nil {
-			// Ping failed.
-			// Attempt to start the agent.
-			identitiesText, err := decryptIdentities(identities)
-			if err != nil {
-				return "", err
-			}
-
-			if err := startAgentProcess(agentSocket, identitiesText); err != nil {
-				return "", fmt.Errorf("failed to start agent: %v", err)
-			}
-		}
-
-		password, err := decryptWithAgent(agentSocket, encryptedData)
-		if err != nil {
-			return "", err
-		}
-
-		return password, nil
-	}
-
-	// When no agent socket is configured, decrypt directly.
-	// Decrypt the password-protected identities file first.
-	identitiesText, err := decryptIdentities(identities)
-	if err != nil {
-		return "", err
-	}
-
-	ids, err := age.ParseIdentities(strings.NewReader(identitiesText))
-	if err != nil {
-		return "", fmt.Errorf("failed to parse identities: %v", err)
-	}
-
-	r, err := wrapDecrypt(bytes.NewReader(encryptedData), ids...)
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt: %v", err)
-	}
-
-	password, err := io.ReadAll(r)
-	if err != nil {
-		return "", fmt.Errorf("failed to read decrypted content: %v", err)
-	}
-
-	return string(password), nil
-}
-
 // Check if the password name contains unacceptable path traversal.
 func validatePath(passwordStore, name string) error {
 	path := passwordFile(passwordStore, name)
@@ -1083,35 +766,6 @@ func validatePath(passwordStore, name string) error {
 	}
 
 	return fmt.Errorf("password path is out of bounds")
-}
-
-func listFiles(root string, transform func(name string, info os.FileInfo) (bool, string)) ([]string, error) {
-	list := []string{}
-
-	err := filepath.Walk(root, func(name string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		name, err = filepath.Abs(name)
-		if err != nil {
-			return err
-		}
-
-		keep, displayName := transform(name, info)
-		if !keep {
-			return nil
-		}
-
-		list = append(list, displayName)
-
-		return nil
-	})
-	if err != nil {
-		return []string{}, err
-	}
-
-	return list, nil
 }
 
 func main() {
