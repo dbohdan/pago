@@ -135,7 +135,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 	var err error
 
 	if cmd.Multiline {
-		fmt.Fprintln(os.Stderr, "Reading password from stdin until EOF.")
+		fmt.Fprintln(os.Stderr, "Reading password from stdin until EOF:")
 
 		var buf bytes.Buffer
 		if _, err := io.Copy(&buf, os.Stdin); err != nil {
@@ -182,7 +182,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 		}
 	}
 
-	fmt.Fprintln(os.Stderr, "Password saved.")
+	fmt.Fprintln(os.Stderr, "Password saved")
 	return nil
 }
 
@@ -383,13 +383,14 @@ func (cmd *EditCmd) Run(config *Config) error {
 	}
 
 	text, err := Edit(password)
-	fmt.Println()
 	if err != nil && !errors.Is(err, CancelError) {
 		return fmt.Errorf("editor failed: %v", err)
 	}
 
+	fmt.Println()
+
 	if text == password || errors.Is(err, CancelError) {
-		fmt.Fprintln(os.Stderr, "No changes made.")
+		fmt.Fprintln(os.Stderr, "No changes made")
 		return nil
 	}
 
@@ -410,7 +411,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 		}
 	}
 
-	fmt.Fprintln(os.Stderr, "Password updated.")
+	fmt.Fprintln(os.Stderr, "Password updated")
 	return nil
 }
 
@@ -618,7 +619,7 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to write identities file: %w", err)
 	}
 
-	fmt.Fprintln(os.Stderr, "Identities file reencrypted.")
+	fmt.Fprintln(os.Stderr, "Identities file reencrypted")
 	return nil
 }
 
