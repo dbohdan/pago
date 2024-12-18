@@ -9,9 +9,10 @@ set -l clip_commands c clip
 set -l delete_commands d del delete
 set -l edit_commands e edit
 set -l generate_commands g gen generate
+set -l pick_commands p pick
 set -l show_commands s show
 set -l version_commands v ver version
-set -g __pago_cmd_groups $add_commands $clip_commands $delete_commands $edit_commands $generate_commands $show_commands $version_commands
+set -g __pago_cmd_groups $add_commands $clip_commands $delete_commands $edit_commands $generate_commands $pick_commands $show_commands $version_commands
 
 function __pago_no_subcommand
     not __fish_seen_subcommand_from $__pago_cmd_groups
@@ -22,7 +23,6 @@ complete -c pago -f
 # Commands without options.
 complete -c pago -n __pago_no_subcommand -a find -d "Find entry by name regex"
 complete -c pago -n __pago_no_subcommand -a init -d "Create a new password store"
-complete -c pago -n __pago_no_subcommand -a pick -d "Show password for a picked entry"
 complete -c pago -n __pago_no_subcommand -a rewrap -d "Change the password for the identities file"
 complete -c pago -n __pago_no_subcommand -a version -d "Print version number and exit"
 
@@ -77,6 +77,12 @@ complete -c pago -n __pago_no_subcommand -a generate -d "Generate and print pass
 for cmd in $generate_commands
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s l -l length -d "Password length" -r
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s p -l pattern -d "Password pattern" -r
+end
+
+# `pick` command options.
+complete -c pago -n __pago_no_subcommand -a pick -d "Show password for a picked entry"
+for cmd in $pick_commands
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -a "(pago find)"
 end
 
 # `show` command options.
