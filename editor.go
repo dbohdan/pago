@@ -24,8 +24,8 @@ type editor struct {
 type cancelError struct{}
 
 const (
-	banner          = "[ Ctrl+D: Save ] [ Ctrl+V: Paste ] [ Esc: Cancel ]\n\n%s\n"
-	bannerNoSave    = "[ Ctrl+V: Paste ] [ Esc: Cancel ]\n\n%s\n"
+	bannerNoSave    = "[ Ctrl+V: Paste ] [ Esc: Cancel ]"
+	bannerSave      = "[ Ctrl+D: Save ] [ Ctrl+V: Paste ] [ Esc: Cancel ]"
 	defaultHeight   = 15
 	defaultWidth    = 80
 	editorCharLimit = 1 << 16
@@ -67,12 +67,12 @@ func (e editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (e editor) View() string {
-	formatLine := bannerNoSave
+	banner := bannerNoSave
 	if e.save {
-		formatLine = banner
+		banner = bannerSave
 	}
 
-	return fmt.Sprintf(formatLine, e.textarea.View())
+	return fmt.Sprintf("%s\n\n%s\n", banner, e.textarea.View())
 }
 
 // Edit presents an editor with the given initial content and returns the edited text.
