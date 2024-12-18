@@ -1,14 +1,15 @@
 # pago
 
+> 🚧 **[Alpha](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) software.**
+> This project is in early development.
+> Expect bugs, security vulnerabilities, and potential data loss.
+
 **pago** is a command-line password manager.
 It provides the following in a single binary:
 - [age](https://github.com/FiloSottile/age) public-key and password encryption
 - Git version control of the password store ([go-git](https://github.com/go-git/go-git))
 - A fuzzy finder similar to [fzf](https://github.com/junegunn/fzf) for choosing entries ([go-fuzzyfinder](https://github.com/ktr0731/go-fuzzyfinder))
 - A multiline text editor for editing encrypted data without writing it to disk ([bubbles/textarea](https://github.com/charmbracelet/bubbles))
-
-**pago is in the [alpha phase](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) of development.
-Security vulnerabilities and bugs that cause data loss are expected.**
 
 ## Description
 
