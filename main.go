@@ -345,6 +345,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 type EditCmd struct {
 	Force bool   `short:"f" help:"Create the entry if it doesn't exist"`
 	Name  string `arg:"" optional:"" help:"Name of the password entry"`
+	Save  bool   `default:"true" negatable:"" help:"Allow saving edited entry"`
 	Pick  bool   `short:"p" help:"Pick entry using fuzzy finder"`
 }
 
@@ -378,7 +379,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
-	text, err := Edit(password)
+	text, err := Edit(password, cmd.Save)
 	if err != nil && !errors.Is(err, CancelError) {
 		return fmt.Errorf("editor failed: %v", err)
 	}

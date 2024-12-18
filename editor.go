@@ -16,13 +16,16 @@ import (
 )
 
 type editor struct {
-	textarea textarea.Model
 	err      error
+	save     bool
+	textarea textarea.Model
 }
 
 type cancelError struct{}
 
 const (
+	banner          = "[ Ctrl+D: Save ] [ Ctrl+V: Paste ] [ Esc: Cancel ]\n\n%s\n"
+	bannerNoSave    = "[ Ctrl+V: Paste ] [ Esc: Cancel ]\n\n%s\n"
 	defaultHeight   = 15
 	defaultWidth    = 80
 	editorCharLimit = 1 << 16
@@ -51,6 +54,10 @@ func (e editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return e, tea.Quit
 
 		case tea.KeyCtrlD:
+			if !e.save {
+				return e, nil
+			}
+
 			return e, tea.Quit
 		}
 	}
@@ -60,14 +67,16 @@ func (e editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (e editor) View() string {
-	return fmt.Sprintf(
-		"[ Ctrl+D: Save ] [ Ctrl+V: Paste ] [ Esc: Cancel ]\n\n%s\n",
-		e.textarea.View(),
-	)
+	formatLine := bannerNoSave
+	if e.save {
+		formatLine = banner
+	}
+
+	return fmt.Sprintf(formatLine, e.textarea.View())
 }
 
 // Edit presents an editor with the given initial content and returns the edited text.
-func Edit(initial string) (string, error) {
+func Edit(initial string, save bool) (string, error) {
 	if len(initial) > editorCharLimit {
 		return "", fmt.Errorf("initial text too long")
 	}
@@ -94,6 +103,7 @@ func Edit(initial string) (string, error) {
 	ta.SetHeight(height)
 
 	e := editor{
+		save:     save,
 		textarea: ta,
 	}
 
