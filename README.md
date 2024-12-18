@@ -66,6 +66,9 @@ Once Go is installed on your system, run the following command:
 go install github.com/dbohdan/pago@master
 ```
 
+Shell completion files for Bash and fish are available in [`completions/`](completions/).
+To install completions fish, run `install.fish`.
+
 ## Supported platforms
 
 - pago is used by the developer on Linux, NetBSD, and OpenBSD.
