@@ -7,8 +7,8 @@ It provides the following in a single binary:
 - A fuzzy finder similar to [fzf](https://github.com/junegunn/fzf) for choosing entries ([go-fuzzyfinder](https://github.com/ktr0731/go-fuzzyfinder))
 - A multiline text editor for editing encrypted data without writing it to disk ([bubbles/textarea](https://github.com/charmbracelet/bubbles))
 
-pago is currently in the [alpha phase](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) of development.
-Expect uncaught security vulnerabilities and bugs that cause data loss.
+**pago is in the [alpha phase](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) of development.
+Security vulnerabilities and bugs that cause data loss are expected.**
 
 ## Description
 
@@ -73,11 +73,11 @@ To install completions fish, run `install.fish`.
 
 - pago is used by the developer on Linux, NetBSD, and OpenBSD.
 - pago is automatically tested on FreeBSD and macOS.
-- pago compiles on Windows.
+- pago does not build on Windows.
 
-When pago is built natively for Windows, it has no agent.
-The test suite also doesn't work on Windows.
-Windows users interested in pago should prefer running it in [WSL](https://en.wikipedia.org/wiki/Windows_Subsystem_for_Linux).
+The pago agent and test suite don't work on Windows.
+Instead of offering a partial and untested Windows build, the project doesn't support Windows.
+Windows users interested in pago are encouraged to try it in [WSL](https://en.wikipedia.org/wiki/Windows_Subsystem_for_Linux).
 
 ## Usage
 

@@ -97,25 +97,3 @@ jobs:
     - name: Build and test
       run: |
         task
-
-  windows:
-    runs-on: windows-latest
-    steps:
-    - name: 'Disable `autocrlf` in Git'
-      run: git config --global core.autocrlf false
-
-    - name: Checkout
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v5
-      with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: Install Task
-      run: |
-        go install github.com/go-task/task/v3/cmd/task@$env:TASK_VERSION
-
-    - name: Build
-      run: |
-        task build
