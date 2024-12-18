@@ -79,7 +79,7 @@ const (
 	filePerms       = 0o600
 	maxStepsPerChar = 1000
 	storePath       = "store"
-	version         = "0.8.0"
+	version         = "0.9.0"
 	waitForSocket   = 3 * time.Second
 
 	clipEnv     = "PAGO_CLIP"
