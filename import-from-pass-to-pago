@@ -4,6 +4,7 @@
 # License: MIT.
 # See the file `LICENSE`.
 set -euo pipefail
+shopt -s nullglob
 
 src=${1:-}
 dest=${2:-}
@@ -51,7 +52,6 @@ if [[ $git_src -eq 1 ]]; then
 fi
 
 git add "$recips"
-git add ./*.age
-git add ./**/*.age || :
+git add ./*.age ./**/*.age
 
 git commit -m 'Migrate to pago'
