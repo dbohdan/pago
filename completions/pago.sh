@@ -51,7 +51,7 @@ _pago_complete() {
     else
         # Complete subcommands or global options.
         case "$subcommand" in
-            add|clip|delete|edit|generate|show)
+            a|add|c|clip|d|del|delete|rm|e|edit|g|gen|generate|p|pick|s|show)
                 _pago_complete_subcommand_options "$subcommand"
                 ;;
             *)
