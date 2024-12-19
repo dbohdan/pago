@@ -51,8 +51,15 @@ func savePassword(recipients, passwordStore, name, password string) error {
 		return err
 	}
 
-	dest := passwordFile(passwordStore, name)
+	dest, err := passwordFile(passwordStore, name)
+	if err != nil {
+		return err
+	}
+
 	err = os.MkdirAll(filepath.Dir(dest), dirPerms)
+	if err != nil {
+		return fmt.Errorf("failed to create output path: %v", err)
+	}
 
 	f, err := os.Create(dest)
 	if err != nil {
@@ -132,7 +139,12 @@ func decryptIdentities(identitiesPath string) (string, error) {
 }
 
 func decryptPassword(agentSocket, identities, passwordStore, name string) (string, error) {
-	encryptedData, err := os.ReadFile(passwordFile(passwordStore, name))
+	file, err := passwordFile(passwordStore, name)
+	if err != nil {
+		return "", err
+	}
+
+	encryptedData, err := os.ReadFile(file)
 	if err != nil {
 		return "", fmt.Errorf("failed to read password file: %v", err)
 	}

@@ -62,10 +62,10 @@ func withPagoDir(test func(dataDir string) (string, error)) (string, error) {
 		return "", fmt.Errorf("failed to start command: %w", err)
 	}
 
-	c.ExpectString("Enter password")
-	c.SendLine(password)
-	c.ExpectString("again")
-	c.SendLine(password)
+	_, _ = c.ExpectString("Enter password")
+	_, _ = c.SendLine(password)
+	_, _ = c.ExpectString("again")
+	_, _ = c.SendLine(password)
 
 	err = cmd.Wait()
 	if err != nil {
@@ -198,9 +198,9 @@ func TestClip(t *testing.T) {
 			return "", fmt.Errorf("failed to start command: %w", err)
 		}
 
-		c.ExpectString("Enter password")
-		c.SendLine(password)
-		c.ExpectString("Clearing clipboard in 1 second")
+		_, _ = c.ExpectString("Enter password")
+		_, _ = c.SendLine(password)
+		_, _ = c.ExpectString("Clearing clipboard in 1 second")
 
 		err = cmd.Wait()
 		if err != nil {
@@ -319,19 +319,19 @@ func TestRewrap(t *testing.T) {
 		if err != nil {
 			return "", fmt.Errorf("failed to get first password prompt: %w", err)
 		}
-		c.SendLine(password)
+		_, _ = c.SendLine(password)
 
 		_, err = c.ExpectString("Enter password")
 		if err != nil {
 			return "", fmt.Errorf("failed to get second password prompt: %w", err)
 		}
-		c.SendLine(newPassword)
+		_, _ = c.SendLine(newPassword)
 
 		_, err = c.ExpectString("again")
 		if err != nil {
 			return "", fmt.Errorf("failed to get confirmation prompt: %w", err)
 		}
-		c.SendLine(newPassword)
+		_, _ = c.SendLine(newPassword)
 
 		err = cmd.Wait()
 		if err != nil {
@@ -361,7 +361,7 @@ func TestRewrap(t *testing.T) {
 		if err != nil {
 			return "", fmt.Errorf("failed to get passworr prompt for `show`: %w", err)
 		}
-		c.SendLine(newPassword)
+		_, _ = c.SendLine(newPassword)
 
 		err = cmd.Wait()
 		if err != nil {
@@ -403,8 +403,8 @@ func TestShowName(t *testing.T) {
 			return "", fmt.Errorf("failed to start command: %w", err)
 		}
 
-		c.ExpectString("Enter password")
-		c.SendLine(password)
+		_, _ = c.ExpectString("Enter password")
+		_, _ = c.SendLine(password)
 
 		err = cmd.Wait()
 		if err != nil {

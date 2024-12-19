@@ -34,7 +34,7 @@ const (
 var CancelError = &cancelError{}
 
 func (e *cancelError) Error() string {
-	return fmt.Sprintf("editor canceled")
+	return "editor canceled"
 }
 
 func (e editor) Init() tea.Cmd {
@@ -94,10 +94,12 @@ func Edit(initial string, save bool) (string, error) {
 	// Match blurred and focused styles.
 	ta.BlurredStyle = ta.FocusedStyle
 
-	width, height := defaultWidth, defaultHeight
 	width, height, err := term.GetSize(0)
 	if err == nil {
 		height /= 2
+	} else {
+		width = defaultWidth
+		height = defaultHeight
 	}
 	ta.SetWidth(width)
 	ta.SetHeight(height)

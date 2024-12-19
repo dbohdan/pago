@@ -38,7 +38,7 @@ func pickPassword(store string, query string) (string, error) {
 		fuzzyfinder.WithQuery(query),
 	)
 	if err != nil {
-		if errors.Is(fuzzyfinder.ErrAbort, err) {
+		if errors.Is(err, fuzzyfinder.ErrAbort) {
 			return "", nil
 		}
 		return "", fmt.Errorf("fuzzy finder failed: %v", err)
@@ -77,7 +77,9 @@ func askYesNo(prompt string) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("failed to make terminal raw: %v", err)
 	}
-	defer term.Restore(int(os.Stdin.Fd()), oldState)
+	defer func() {
+		_ = term.Restore(int(os.Stdin.Fd()), oldState)
+	}()
 
 	answer := ""
 	for answer != "n" && answer != "y" {
@@ -91,7 +93,7 @@ func askYesNo(prompt string) (bool, error) {
 		answer = strings.ToLower(string(input[0]))
 	}
 
-	term.Restore(int(os.Stdin.Fd()), oldState)
+	_ = term.Restore(int(os.Stdin.Fd()), oldState)
 	fmt.Fprintln(os.Stderr)
 
 	return answer == "y", nil

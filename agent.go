@@ -107,7 +107,9 @@ func startAgentProcess(agentSocket, identitiesText string) error {
 
 	_ = os.Remove(agentSocket)
 	// Don't wait for the process to finish.
-	go cmd.Wait()
+	go func() {
+		_ = cmd.Wait()
+	}()
 
 	if err := waitUntilAvailable(agentSocket, waitForSocket); err != nil {
 		return fmt.Errorf("timed out waiting for agent socket")

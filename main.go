@@ -166,13 +166,18 @@ func (cmd *AddCmd) Run(config *Config) error {
 		return err
 	}
 
+	file, err := passwordFile(config.Store, cmd.Name)
+	if err != nil {
+		return nil
+	}
+
 	if config.Git {
 		if err := commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
 			fmt.Sprintf("add %q", cmd.Name),
-			[]string{passwordFile(config.Store, cmd.Name)},
+			[]string{file},
 		); err != nil {
 			return err
 		}
@@ -299,18 +304,16 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
-	var choice bool
-	var err error
-
-	if cmd.Force {
-		choice = true
-	} else {
-		if choice, err = askYesNo(fmt.Sprintf("Delete entry '%s'?", name)); !choice || err != nil {
+	if !cmd.Force {
+		if choice, err := askYesNo(fmt.Sprintf("Delete entry '%s'?", name)); !choice || err != nil {
 			return err
 		}
 	}
 
-	file := passwordFile(config.Store, name)
+	file, err := passwordFile(config.Store, name)
+	if err != nil {
+		return nil
+	}
 
 	if err := os.Remove(file); err != nil {
 		return fmt.Errorf("failed to delete entry: %v", err)
@@ -396,13 +399,18 @@ func (cmd *EditCmd) Run(config *Config) error {
 		return err
 	}
 
+	file, err := passwordFile(config.Store, cmd.Name)
+	if err != nil {
+		return nil
+	}
+
 	if config.Git {
 		if err := commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
 			fmt.Sprintf("edit %q", name),
-			[]string{passwordFile(config.Store, name)},
+			[]string{file},
 		); err != nil {
 			return err
 		}
@@ -735,8 +743,16 @@ func generatePassword(pattern string, length int) (string, error) {
 }
 
 // Map a password's name to its file path.
-func passwordFile(passwordStore, name string) string {
-	return filepath.Join(passwordStore, name+ageExt)
+func passwordFile(passwordStore, name string) (string, error) {
+	file := filepath.Join(passwordStore, name+ageExt)
+
+	for path := file; path != "/"; path = filepath.Dir(path) {
+		if path == passwordStore {
+			return file, nil
+		}
+	}
+
+	return "", fmt.Errorf("password path is out of bounds")
 }
 
 func pathExists(path string) bool {
@@ -745,7 +761,12 @@ func pathExists(path string) bool {
 }
 
 func passwordExists(passwordStore, name string) bool {
-	return pathExists(passwordFile(passwordStore, name))
+	file, err := passwordFile(passwordStore, name)
+	if err != nil {
+		return false
+	}
+
+	return pathExists(file)
 }
 
 func waitUntilAvailable(path string, maximum time.Duration) error {
@@ -756,27 +777,13 @@ func waitUntilAvailable(path string, maximum time.Duration) error {
 			return nil
 		}
 
-		elapsed := time.Now().Sub(start)
+		elapsed := time.Since(start)
 		if elapsed > maximum {
 			return fmt.Errorf("reached %v timeout", maximum)
 		}
 
 		time.Sleep(50 * time.Millisecond)
 	}
-}
-
-// Check if the password name contains unacceptable path traversal.
-func validatePath(passwordStore, name string) error {
-	path := passwordFile(passwordStore, name)
-
-	for path != "/" {
-		path = filepath.Dir(path)
-		if path == passwordStore {
-			return nil
-		}
-	}
-
-	return fmt.Errorf("password path is out of bounds")
 }
 
 func main() {
