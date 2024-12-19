@@ -51,6 +51,7 @@ type CLI struct {
 	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
 	Init     InitCmd     `cmd:"" help:"Create a new passwore store"`
 	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password for an entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
+	Rekey    RekeyCmd    `cmd:"" help:"Reencrypt all password entries with the recipients file"`
 	Rewrap   RewrapCmd   `cmd:"" help:"Change the password for the identities file"`
 	Show     ShowCmd     `cmd:"" aliases:"s" help:"Show password for entry or list entries"`
 	Version  VersionCmd  `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
@@ -229,6 +230,14 @@ func copyToClipboard(command string, text string) error {
 	return nil
 }
 
+func englishPlural(singular, plural string, count int) string {
+	if count%10 == 1 && count%100 != 11 {
+		return singular
+	}
+
+	return plural
+}
+
 func (cmd *ClipCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
@@ -261,11 +270,12 @@ func (cmd *ClipCmd) Run(config *Config) error {
 
 	timeout := time.Duration(cmd.Timeout) * time.Second
 	if timeout > 0 {
-		ending := "s"
-		if cmd.Timeout%10 == 1 && cmd.Timeout%100 != 11 {
-			ending = ""
-		}
-		fmt.Fprintf(os.Stderr, "Clearing clipboard in %v second%s\n", cmd.Timeout, ending)
+		fmt.Fprintf(
+			os.Stderr,
+			"Clearing clipboard in %v %s\n",
+			cmd.Timeout,
+			englishPlural("second", "seconds", cmd.Timeout),
+		)
 
 		time.Sleep(timeout)
 		if err := copyToClipboard(cmd.Command, ""); err != nil {
@@ -565,6 +575,92 @@ type PickCmd struct {
 func (cmd *PickCmd) Run(config *Config) error {
 	showCmd := &ShowCmd{Name: cmd.Name, Pick: true}
 	return showCmd.Run(config)
+}
+
+type RekeyCmd struct{}
+
+func (cmd *RekeyCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	// Get a list of all password entries.
+	entries, err := listFiles(config.Store, passwordFilter(config.Store, nil))
+	if err != nil {
+		return fmt.Errorf("failed to list passwords: %v", err)
+	}
+
+	if len(entries) == 0 {
+		return fmt.Errorf("no password entries found")
+	}
+
+	// Decrypt the identities once.
+	// This is so we don't have to ask the user for a password repeatedly without using the agent.
+	identitiesText, err := decryptIdentities(config.Identities)
+	if err != nil {
+		return err
+	}
+
+	ids, err := age.ParseIdentities(strings.NewReader(identitiesText))
+	if err != nil {
+		return fmt.Errorf("failed to parse identities: %v", err)
+	}
+
+	// Decrypt each entry using the loaded identities and reencrypt it with the recipients.
+	count := 0
+	for _, entry := range entries {
+		file, err := passwordFile(config.Store, entry)
+		if err != nil {
+			return fmt.Errorf("failed to get path for %q: %v", entry, err)
+		}
+
+		encryptedData, err := os.ReadFile(file)
+		if err != nil {
+			return fmt.Errorf("failed to read password file %q: %v", entry, err)
+		}
+
+		r, err := wrapDecrypt(bytes.NewReader(encryptedData), ids...)
+		if err != nil {
+			return fmt.Errorf("failed to decrypt %q: %v", entry, err)
+		}
+
+		passwordBytes, err := io.ReadAll(r)
+		if err != nil {
+			return fmt.Errorf("failed to read decrypted content from %q: %v", entry, err)
+		}
+
+		if err := savePassword(config.Recipients, config.Store, entry, string(passwordBytes)); err != nil {
+			return fmt.Errorf("failed to reencrypt %q: %v", entry, err)
+		}
+
+		count++
+	}
+
+	fmt.Fprintf(os.Stderr, "Reencrypted %d %s\n", count, englishPlural("entry", "entries", count))
+
+	if config.Git {
+		files := make([]string, len(entries))
+		for i, entry := range entries {
+			file, err := passwordFile(config.Store, entry)
+			if err != nil {
+				return fmt.Errorf("failed to get path for %q: %v", entry, err)
+			}
+
+			files[i] = file
+		}
+
+		if err := commit(
+			config.Store,
+			config.GitName,
+			config.GitEmail,
+			fmt.Sprintf("reencrypt %d %s", count, englishPlural("entry", "entries", count)),
+			files,
+		); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 type RewrapCmd struct{}
