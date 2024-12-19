@@ -31,11 +31,11 @@ It has the following differences:
 - The pago directory is located in `${XDG_DATA_HOME}/pago/`, while passage uses `~/.passage/`
 - passage supports an encrypted or an unencrypted identities file; pago only supports encrypted
 
-### Threat model
+## Threat model
 
 An attacker who gets ahold of your pago directory but not the master password should be unable to access the passwords stored in pago except by [brute-forcing](https://en.wikipedia.org/wiki/Brute-force_attack) the master password.
 
-### Motivation and alternatives
+## Motivation and alternatives
 
 My primary password manager is [KeePassXC](https://github.com/keepassxreboot/keepassxc).
 I use a secondary password manager to access a subset of secrets in cron jobs and scripts and on headless remote systems.
@@ -56,7 +56,7 @@ It is what I would most likely be using if I didn't decide to develop my own.
 All of the above password managers are worth your attention.
 For more options, see ["Awesome age"](https://github.com/FiloSottile/awesome-age).
 
-### History
+## History
 
 pago is a heavily modified fork of [pash](https://github.com/dylanaraps/pash) (archived).
 It has been ported from POSIX shell to Tcl to Go.
