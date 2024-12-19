@@ -40,7 +40,7 @@ func parseRecipients(contents string) ([]age.Recipient, error) {
 }
 
 // Encrypt the password and save it to a file.
-func savePassword(recipients, passwordStore, name, password string) error {
+func saveEntry(recipients, passwordStore, name, password string) error {
 	recipientsData, err := os.ReadFile(recipients)
 	if err != nil {
 		return fmt.Errorf("failed to read recipients file: %v", err)
@@ -51,7 +51,7 @@ func savePassword(recipients, passwordStore, name, password string) error {
 		return err
 	}
 
-	dest, err := passwordFile(passwordStore, name)
+	dest, err := entryFile(passwordStore, name)
 	if err != nil {
 		return err
 	}
@@ -138,8 +138,8 @@ func decryptIdentities(identitiesPath string) (string, error) {
 	return string(decrypted), nil
 }
 
-func decryptPassword(agentSocket, identities, passwordStore, name string) (string, error) {
-	file, err := passwordFile(passwordStore, name)
+func decryptEntry(agentSocket, identities, passwordStore, name string) (string, error) {
+	file, err := entryFile(passwordStore, name)
 	if err != nil {
 		return "", err
 	}

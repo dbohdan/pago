@@ -112,8 +112,8 @@ func listFiles(root string, transform func(name string, info os.FileInfo) (bool,
 	return list, nil
 }
 
-// Return a function that filters filenames entries.
-func passwordFilter(root string, pattern *regexp.Regexp) func(name string, info os.FileInfo) (bool, string) {
+// Return a function that filters entries by a filename pattern.
+func entryFilter(root string, pattern *regexp.Regexp) func(name string, info os.FileInfo) (bool, string) {
 	return func(name string, info os.FileInfo) (bool, string) {
 		if info.IsDir() || !strings.HasSuffix(name, ageExt) {
 			return false, ""

@@ -124,7 +124,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	if !cmd.Force && passwordExists(config.Store, cmd.Name) {
+	if !cmd.Force && entryExists(config.Store, cmd.Name) {
 		return fmt.Errorf("entry already exists: %v", cmd.Name)
 	}
 
@@ -163,11 +163,11 @@ func (cmd *AddCmd) Run(config *Config) error {
 		return err
 	}
 
-	if err := savePassword(config.Recipients, config.Store, cmd.Name, password); err != nil {
+	if err := saveEntry(config.Recipients, config.Store, cmd.Name, password); err != nil {
 		return err
 	}
 
-	file, err := passwordFile(config.Store, cmd.Name)
+	file, err := entryFile(config.Store, cmd.Name)
 	if err != nil {
 		return nil
 	}
@@ -245,7 +245,7 @@ func (cmd *ClipCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pickPassword(config.Store, name)
+		picked, err := pickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -255,11 +255,11 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		name = picked
 	}
 
-	if !passwordExists(config.Store, name) {
+	if !entryExists(config.Store, name) {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
-	password, err := decryptPassword(config.Socket, config.Identities, config.Store, name)
+	password, err := decryptEntry(config.Socket, config.Identities, config.Store, name)
 	if err != nil {
 		return err
 	}
@@ -300,7 +300,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pickPassword(config.Store, name)
+		picked, err := pickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -310,7 +310,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 		name = picked
 	}
 
-	if !passwordExists(config.Store, name) {
+	if !entryExists(config.Store, name) {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
@@ -320,7 +320,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 		}
 	}
 
-	file, err := passwordFile(config.Store, name)
+	file, err := entryFile(config.Store, name)
 	if err != nil {
 		return nil
 	}
@@ -369,7 +369,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pickPassword(config.Store, name)
+		picked, err := pickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -382,9 +382,9 @@ func (cmd *EditCmd) Run(config *Config) error {
 	var password string
 	var err error
 
-	if passwordExists(config.Store, name) {
+	if entryExists(config.Store, name) {
 		// Decrypt the existing password.
-		password, err = decryptPassword(config.Socket, config.Identities, config.Store, name)
+		password, err = decryptEntry(config.Socket, config.Identities, config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -405,11 +405,11 @@ func (cmd *EditCmd) Run(config *Config) error {
 	}
 
 	// Save the edited password.
-	if err := savePassword(config.Recipients, config.Store, name, text); err != nil {
+	if err := saveEntry(config.Recipients, config.Store, name, text); err != nil {
 		return err
 	}
 
-	file, err := passwordFile(config.Store, cmd.Name)
+	file, err := entryFile(config.Store, cmd.Name)
 	if err != nil {
 		return nil
 	}
@@ -444,7 +444,7 @@ func (cmd *FindCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to compile regular expression: %v", err)
 	}
 
-	list, err := listFiles(config.Store, passwordFilter(config.Store, pattern))
+	list, err := listFiles(config.Store, entryFilter(config.Store, pattern))
 	if err != nil {
 		return fmt.Errorf("failed to search entries: %v", err)
 	}
@@ -585,7 +585,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 	}
 
 	// Get a list of all password entries.
-	entries, err := listFiles(config.Store, passwordFilter(config.Store, nil))
+	entries, err := listFiles(config.Store, entryFilter(config.Store, nil))
 	if err != nil {
 		return fmt.Errorf("failed to list passwords: %v", err)
 	}
@@ -609,7 +609,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 	// Decrypt each entry using the loaded identities and reencrypt it with the recipients.
 	count := 0
 	for _, entry := range entries {
-		file, err := passwordFile(config.Store, entry)
+		file, err := entryFile(config.Store, entry)
 		if err != nil {
 			return fmt.Errorf("failed to get path for %q: %v", entry, err)
 		}
@@ -629,7 +629,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 			return fmt.Errorf("failed to read decrypted content from %q: %v", entry, err)
 		}
 
-		if err := savePassword(config.Recipients, config.Store, entry, string(passwordBytes)); err != nil {
+		if err := saveEntry(config.Recipients, config.Store, entry, string(passwordBytes)); err != nil {
 			return fmt.Errorf("failed to reencrypt %q: %v", entry, err)
 		}
 
@@ -641,7 +641,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 	if config.Git {
 		files := make([]string, len(entries))
 		for i, entry := range entries {
-			file, err := passwordFile(config.Store, entry)
+			file, err := entryFile(config.Store, entry)
 			if err != nil {
 				return fmt.Errorf("failed to get path for %q: %v", entry, err)
 			}
@@ -729,7 +729,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pickPassword(config.Store, name)
+		picked, err := pickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -739,11 +739,11 @@ func (cmd *ShowCmd) Run(config *Config) error {
 		name = picked
 	}
 
-	if !passwordExists(config.Store, name) {
+	if !entryExists(config.Store, name) {
 		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
 	}
 
-	password, err := decryptPassword(
+	password, err := decryptEntry(
 		config.Socket,
 		config.Identities,
 		config.Store,
@@ -838,8 +838,8 @@ func generatePassword(pattern string, length int) (string, error) {
 	return password.String(), nil
 }
 
-// Map a password's name to its file path.
-func passwordFile(passwordStore, name string) (string, error) {
+// Map an entry's name to its file path.
+func entryFile(passwordStore, name string) (string, error) {
 	file := filepath.Join(passwordStore, name+ageExt)
 
 	for path := file; path != "/"; path = filepath.Dir(path) {
@@ -848,7 +848,7 @@ func passwordFile(passwordStore, name string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("password path is out of bounds")
+	return "", fmt.Errorf("entry path is out of bounds")
 }
 
 func pathExists(path string) bool {
@@ -856,8 +856,8 @@ func pathExists(path string) bool {
 	return !errors.Is(err, os.ErrNotExist)
 }
 
-func passwordExists(passwordStore, name string) bool {
-	file, err := passwordFile(passwordStore, name)
+func entryExists(passwordStore, name string) bool {
+	file, err := entryFile(passwordStore, name)
 	if err != nil {
 		return false
 	}
