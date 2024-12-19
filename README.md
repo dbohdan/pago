@@ -31,6 +31,10 @@ It has the following differences:
 - The pago directory is located in `${XDG_DATA_HOME}/pago/`, while passage uses `~/.passage/`
 - passage supports an encrypted or an unencrypted identities file; pago only supports encrypted
 
+### Threat model
+
+An attacker who gets ahold of your pago directory but not the master password should be unable to access the passwords stored in pago except by [brute-forcing](https://en.wikipedia.org/wiki/Brute-force_attack) the master password.
+
 ### Motivation and alternatives
 
 My primary password manager is [KeePassXC](https://github.com/keepassxreboot/keepassxc).
