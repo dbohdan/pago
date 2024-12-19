@@ -17,10 +17,10 @@ import (
 	"golang.org/x/term"
 )
 
-// Pick a password entry using fuzzy finder
-func pickPassword(store string, query string) (string, error) {
-	// Create a list of all passwords
-	list, err := listFiles(store, passwordFilter(store, nil))
+// Pick an entry using a fuzzy finder.
+func pickEntry(store string, query string) (string, error) {
+	// Create a list of all passwords.
+	list, err := listFiles(store, entryFilter(store, nil))
 	if err != nil {
 		return "", fmt.Errorf("failed to list passwords: %v", err)
 	}
@@ -29,7 +29,7 @@ func pickPassword(store string, query string) (string, error) {
 		return "", fmt.Errorf("no password entries found")
 	}
 
-	// Show an interactive fuzzy finder
+	// Show an interactive fuzzy finder.
 	idx, err := fuzzyfinder.Find(
 		list,
 		func(i int) string {
