@@ -4,7 +4,7 @@
 # See the file `LICENSE`.
 
 # Command aliases and options.
-_pago_main_commands="add clip delete edit find generate init pick rewrap show version"
+_pago_main_commands="add clip delete edit find generate init pick rekey rewrap show version"
 _pago_global_options="-d --dir --no-confirm --no-git --git-email --git-name -s --socket -v --verbose"
 
 # Subcommand options.

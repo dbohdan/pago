@@ -8,6 +8,7 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,6 +16,8 @@ import (
 	"strings"
 	"testing"
 
+	"filippo.io/age"
+	"filippo.io/age/armor"
 	expect "github.com/Netflix/go-expect"
 )
 
@@ -293,6 +296,88 @@ func TestGenerate(t *testing.T) {
 	re := `^a{15}$`
 	if matched, _ := regexp.MatchString(re, strings.TrimSpace(output)); !matched {
 		t.Errorf("Expected %q in stdout", re)
+	}
+}
+
+func TestRekey(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		for _, name := range []string{"foo", "bar", "baz/qux"} {
+			stdout, stderr, err := runCommandEnv(
+				[]string{"PAGO_DIR=" + dataDir},
+				"add", name, "--length", "32", "--pattern", "[a]", "--random",
+			)
+			if err != nil {
+				return stdout + "\n" + stderr, err
+			}
+		}
+
+		identity, err := age.GenerateX25519Identity()
+		if err != nil {
+			return "", fmt.Errorf("failed to generate age identity: %w", err)
+		}
+
+		// Write the public key to `.age-recipients`.
+		recipientsPath := filepath.Join(dataDir, "store/.age-recipients")
+		err = os.WriteFile(recipientsPath, []byte(identity.Recipient().String()+"\n"), 0600)
+		if err != nil {
+			return "", fmt.Errorf("failed to write recipients file: %w", err)
+		}
+
+		c, err := expect.NewConsole()
+		if err != nil {
+			return "", fmt.Errorf("failed to create console: %w", err)
+		}
+		defer c.Close()
+
+		cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "rekey")
+		cmd.Stdin = c.Tty()
+		cmd.Stdout = c.Tty()
+		cmd.Stderr = c.Tty()
+
+		err = cmd.Start()
+		if err != nil {
+			return "", fmt.Errorf("failed to start rekey command: %w", err)
+		}
+
+		_, err = c.ExpectString("Enter password")
+		if err != nil {
+			return "", fmt.Errorf("failed to get password prompt: %w", err)
+		}
+		_, _ = c.SendLine(password)
+
+		err = cmd.Wait()
+		if err != nil {
+			return "", fmt.Errorf("rekey failed: %w", err)
+		}
+
+		// Verify we can decrypt the entries using our key.
+		for _, name := range []string{"foo", "bar", "baz/qux"} {
+			encryptedPath := filepath.Join(dataDir, "store", name+".age")
+			encryptedBytes, err := os.ReadFile(encryptedPath)
+			if err != nil {
+				return "", fmt.Errorf("failed to read encrypted file %q: %w", name, err)
+			}
+
+			r, err := age.Decrypt(armor.NewReader(bytes.NewReader(encryptedBytes)), identity)
+			if err != nil {
+				return "", fmt.Errorf("failed to decrypt %q: %w", name, err)
+			}
+
+			decrypted, err := io.ReadAll(r)
+			if err != nil {
+				return "", fmt.Errorf("failed to read decrypted content of %q: %w", name, err)
+			}
+
+			if !regexp.MustCompile(`^a{32}$`).Match(decrypted) {
+				return "", fmt.Errorf("unexpected decrypted content for %q: %q", name, decrypted)
+			}
+		}
+
+		return "", nil
+	})
+
+	if err != nil {
+		t.Errorf("Command `rekey` failed: %v", err)
 	}
 }
 

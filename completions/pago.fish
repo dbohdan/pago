@@ -23,6 +23,7 @@ complete -c pago -f
 # Commands without options.
 complete -c pago -n __pago_no_subcommand -a find -d "Find entry by name regex"
 complete -c pago -n __pago_no_subcommand -a init -d "Create a new password store"
+complete -c pago -n __pago_no_subcommand -a rekey -d "Reencrypt all entries with recipients file"
 complete -c pago -n __pago_no_subcommand -a rewrap -d "Change the password for the identities file"
 complete -c pago -n __pago_no_subcommand -a version -d "Print version number and exit"
 
