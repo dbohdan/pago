@@ -15,12 +15,12 @@ It provides the following in a single binary:
 
 pago encrypts passwords with one or more public keys using [age](https://github.com/FiloSottile/age) (pronounced with a hard "g").
 The public keys are called "recipients".
-A private key matching any of the recipient public keys can decrypt the password.
+A private key matching one of the recipient public keys can decrypt the password.
 The private keys are called "identities".
 The file with the identities is encrypted with a password, also using age.
 
 pago implements an agent like [ssh-agent](https://en.wikipedia.org/wiki/Ssh-agent) or [gpg-agent](https://www.gnupg.org/documentation/manuals/gnupg/Invoking-GPG_002dAGENT.html).
-The agent caches the identities used to decrypt the passwords.
+The agent caches the identities.
 This mean you don't have to enter the master password again during a session.
 pago starts the agent the first time you enter the master password.
 You can also start and stop the agent manually.
@@ -28,7 +28,7 @@ You can also start and stop the agent manually.
 The pago password store format is compatible with [passage](https://github.com/FiloSottile/passage).
 It has the following differences:
 
-- The pago directory is located in `${XDG_DATA_HOME}/pago/`, while passage uses `~/.passage/`
+- The pago directory is located at `${XDG_DATA_HOME}/pago/`, while passage uses `~/.passage/`
 - passage supports an encrypted or an unencrypted identities file; pago only supports encrypted
 
 ## Threat model
@@ -40,12 +40,12 @@ An attacker who gets ahold of your pago directory but not the master password sh
 My primary password manager is [KeePassXC](https://github.com/keepassxreboot/keepassxc).
 I use a secondary password manager to access a subset of secrets in cron jobs and scripts and on headless remote systems.
 
-For a time, I used [`pass`](https://www.passwordstore.org/) for this.
+I used [`pass`](https://www.passwordstore.org/) for this for a time.
 While I liked the design of `pass` and found it pleasant to use, I didn't like setting up GPG on a new system.
 I went looking for a `pass` replacement based on age
 because I had replaced GPG with age for encrypting files.
-The following is the shortlist of password managers I compiled before I decided to work on pago.
-It includes an explanation for why I didn't adopt them.
+The following is the late-2024 shortlist of password managers I compiled before I decided to work on pago.
+It includes explanations for why I didn't adopt them.
 
 First, I needed the identities encrypted at rest and usable without reentering the password.
 This ruled out [passage](https://github.com/FiloSottile/passage), which had no an agent, and [pa](https://github.com/biox/pa), which didn't support encryption for the identities file.
@@ -59,12 +59,11 @@ For more options, see ["Awesome age"](https://github.com/FiloSottile/awesome-age
 ## History
 
 pago is a heavily modified fork of [pash](https://github.com/dylanaraps/pash) (archived).
-It has been ported from POSIX shell to Tcl to Go.
-In the middle of this, it switched from [GPG](https://gnupg.org/) to age.
+It has been ported from POSIX shell to Tcl to Go and from [GPG](https://gnupg.org/) to age.
 
 ## Installation
 
-You will need Go 1.22 to install pago.
+You will need Go 1.22 or later to install pago.
 Once Go is installed on your system, run the following command:
 
 ```
@@ -72,7 +71,7 @@ go install github.com/dbohdan/pago@master
 ```
 
 Shell completion files for Bash and fish are available in [`completions/`](completions/).
-To install completions fish, run `install.fish`.
+To install completions for fish, run `install.fish`.
 
 ## Supported platforms
 
