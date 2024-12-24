@@ -175,6 +175,24 @@ func TestAddMultiline(t *testing.T) {
 	}
 }
 
+func TestAddNewline(t *testing.T) {
+	output, err := withPagoDir(func(dataDir string) (string, error) {
+		stdout, stderr, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "ab\ncd", "--random",
+		)
+		return stdout + "\n" + stderr, err
+	})
+	if err == nil {
+		t.Errorf("Command `add` should fail")
+	}
+
+	re := "entry name contains invalid characters"
+	if matched, _ := regexp.MatchString(re, output); !matched {
+		t.Errorf("Expected %q in stdout", re)
+	}
+}
+
 func TestClip(t *testing.T) {
 	_, err := withPagoDir(func(dataDir string) (string, error) {
 		stdout, stderr, err := runCommandEnv(

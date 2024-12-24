@@ -72,16 +72,17 @@ type Config struct {
 }
 
 const (
-	ageExt          = ".age"
-	agentSocketPath = "socket"
-	defaultLength   = "20"
-	defaultPattern  = "[A-Za-z0-9]"
-	dirPerms        = 0o700
-	filePerms       = 0o600
-	maxStepsPerChar = 1000
-	storePath       = "store"
-	version         = "0.9.0"
-	waitForSocket   = 3 * time.Second
+	ageExt           = ".age"
+	agentSocketPath  = "socket"
+	defaultLength    = "20"
+	defaultPattern   = "[A-Za-z0-9]"
+	dirPerms         = 0o700
+	filePerms        = 0o600
+	maxStepsPerChar  = 1000
+	nameInvalidChars = `[\n]`
+	storePath        = "store"
+	version          = "0.9.0"
+	waitForSocket    = 3 * time.Second
 
 	clipEnv     = "PAGO_CLIP"
 	confirmEnv  = "PAGO_CONFIRM"
@@ -124,12 +125,16 @@ func (cmd *AddCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
+	file, err := entryFile(config.Store, cmd.Name)
+	if err != nil {
+		return err
+	}
+
 	if !cmd.Force && entryExists(config.Store, cmd.Name) {
 		return fmt.Errorf("entry already exists: %v", cmd.Name)
 	}
 
 	var password string
-	var err error
 
 	if cmd.Multiline {
 		fmt.Fprintln(os.Stderr, "Reading password from stdin until EOF:")
@@ -165,11 +170,6 @@ func (cmd *AddCmd) Run(config *Config) error {
 
 	if err := saveEntry(config.Recipients, config.Store, cmd.Name, password); err != nil {
 		return err
-	}
-
-	file, err := entryFile(config.Store, cmd.Name)
-	if err != nil {
-		return nil
 	}
 
 	if config.Git {
@@ -840,6 +840,11 @@ func generatePassword(pattern string, length int) (string, error) {
 
 // Map an entry's name to its file path.
 func entryFile(passwordStore, name string) (string, error) {
+	re := regexp.MustCompile(nameInvalidChars)
+	if re.MatchString(name) {
+		return "", fmt.Errorf("entry name contains invalid characters matching %s", nameInvalidChars)
+	}
+
 	file := filepath.Join(passwordStore, name+ageExt)
 
 	for path := file; path != "/"; path = filepath.Dir(path) {
