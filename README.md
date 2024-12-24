@@ -67,7 +67,7 @@ You will need Go 1.22 or later to install pago.
 Once Go is installed on your system, run the following command:
 
 ```
-go install github.com/dbohdan/pago@master
+go install github.com/dbohdan/pago@latest
 ```
 
 Shell completion files for Bash and fish are available in [`completions/`](completions/).
