@@ -72,7 +72,7 @@ func (cmd *StatusCmd) Run(config *Config) error {
 
 	err := pingAgent(config.Socket)
 	if err == nil {
-		fmt.Println("Agent responded to ping")
+		fmt.Println("Ping successful")
 		os.Exit(0)
 	} else {
 		fmt.Println("Failed to ping agent")
