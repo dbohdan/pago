@@ -51,13 +51,13 @@ _pago_complete() {
     else
         # Complete subcommands or global options.
         case "$subcommand" in
-            a|add|c|clip|d|del|delete|rm|e|edit|g|gen|generate|p|pick|s|show)
-                _pago_complete_subcommand_options "$subcommand"
-                ;;
-            *)
-                # Fallback to global options when there is no valid subcommand.
-                _pago_complete_global_options
-                ;;
+        a | add | c | clip | d | del | delete | rm | e | edit | g | gen | generate | p | pick | s | show)
+            _pago_complete_subcommand_options "$subcommand"
+            ;;
+        *)
+            # Fallback to global options when there is no valid subcommand.
+            _pago_complete_global_options
+            ;;
         esac
     fi
 }
