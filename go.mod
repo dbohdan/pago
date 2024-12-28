@@ -1,4 +1,4 @@
-module github.com/dbohdan/pago
+module dbohdan.com/pago
 
 go 1.22
 
