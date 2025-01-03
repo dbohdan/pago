@@ -3,7 +3,7 @@
 // pago - a command-line password manager.
 //
 // License: MIT.
-// See the file `LICENSE`.
+// See the file LICENSE.
 
 package main
 

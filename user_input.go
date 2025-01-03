@@ -1,7 +1,7 @@
 // pago - a command-line password manager.
 //
 // License: MIT.
-// See the file `LICENSE`.
+// See the file LICENSE.
 
 package main
 
@@ -99,7 +99,7 @@ func askYesNo(prompt string) (bool, error) {
 	return answer == "y", nil
 }
 
-// Ask the user to input a password, twice if `confirm` is true.
+// Ask the user to input a password, twice if confirm is true.
 func readNewPassword(confirm bool) (string, error) {
 	pass, err := secureRead("Enter password: ")
 	if err != nil {

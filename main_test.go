@@ -1,7 +1,7 @@
 // pago - a command-line password manager.
 //
 // License: MIT.
-// See the file `LICENSE`.
+// See the file LICENSE.
 
 package main
 
@@ -334,7 +334,7 @@ func TestRekey(t *testing.T) {
 			return "", fmt.Errorf("failed to generate age identity: %w", err)
 		}
 
-		// Write the public key to `.age-recipients`.
+		// Write the public key to .age-recipients.
 		recipientsPath := filepath.Join(dataDir, "store/.age-recipients")
 		err = os.WriteFile(recipientsPath, []byte(identity.Recipient().String()+"\n"), 0600)
 		if err != nil {

@@ -4,7 +4,7 @@
 // Original repository: https://github.com/dylanaraps/pash (archived).
 //
 // License: MIT.
-// See the file `LICENSE`.
+// See the file LICENSE.
 
 package main
 
