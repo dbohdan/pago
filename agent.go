@@ -30,6 +30,10 @@ func (cmd *RestartCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
+	if err := lockMemory(); err != nil {
+		return err
+	}
+
 	_, _ = messageAgent(config.Socket, "SHUTDOWN")
 
 	identitiesText, err := decryptIdentities(config.Identities)
@@ -45,12 +49,20 @@ func (cmd *RunCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
+	if err := lockMemory(); err != nil {
+		return err
+	}
+
 	return runAgent(config.Socket)
 }
 
 func (cmd *StartCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
+	}
+
+	if err := lockMemory(); err != nil {
+		return err
 	}
 
 	if err := pingAgent(config.Socket); err == nil {
