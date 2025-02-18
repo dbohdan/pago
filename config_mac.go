@@ -5,8 +5,8 @@
 // License: MIT.
 // See the file LICENSE.
 
-package main
+package pago
 
 const (
-	defaultClip = "copy"
+	DefaultClip = "copy"
 )

@@ -1,5 +1,3 @@
-//go:build !darwin && !windows
-
 // pago - a command-line password manager.
 //
 // License: MIT.
@@ -8,5 +6,5 @@
 package pago
 
 const (
-	DefaultClip = "xclip -in -selection clip"
+	AgeExt = ".age"
 )

@@ -3,7 +3,7 @@
 // License: MIT.
 // See the file LICENSE.
 
-package main
+package pago
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
 	"github.com/xlab/treeprint"
 )
 
-func dirTree(root string, transform func(name string, info os.FileInfo) (bool, string)) (string, error) {
+func DirTree(root string, transform func(name string, info os.FileInfo) (bool, string)) (string, error) {
 	tree := treeprint.NewWithRoot(filepath.Base(root))
 	visited := make(map[string]treeprint.Tree)
 
@@ -62,13 +62,13 @@ func dirTree(root string, transform func(name string, info os.FileInfo) (bool, s
 	return tree.String(), nil
 }
 
-func printStoreTree(store string) error {
-	tree, err := dirTree(store, func(name string, info os.FileInfo) (bool, string) {
+func PrintStoreTree(store string) error {
+	tree, err := DirTree(store, func(name string, info os.FileInfo) (bool, string) {
 		if strings.HasPrefix(info.Name(), ".") {
 			return false, ""
 		}
 
-		displayName := strings.TrimSuffix(info.Name(), ageExt)
+		displayName := strings.TrimSuffix(info.Name(), AgeExt)
 		if info.IsDir() {
 			displayName += "/"
 		}
@@ -83,7 +83,7 @@ func printStoreTree(store string) error {
 	return nil
 }
 
-func listFiles(root string, transform func(name string, info os.FileInfo) (bool, string)) ([]string, error) {
+func ListFiles(root string, transform func(name string, info os.FileInfo) (bool, string)) ([]string, error) {
 	list := []string{}
 
 	err := filepath.Walk(root, func(name string, info os.FileInfo, err error) error {
@@ -113,16 +113,16 @@ func listFiles(root string, transform func(name string, info os.FileInfo) (bool,
 }
 
 // Return a function that filters entries by a filename pattern.
-func entryFilter(root string, pattern *regexp.Regexp) func(name string, info os.FileInfo) (bool, string) {
+func EntryFilter(root string, pattern *regexp.Regexp) func(name string, info os.FileInfo) (bool, string) {
 	return func(name string, info os.FileInfo) (bool, string) {
-		if info.IsDir() || !strings.HasSuffix(name, ageExt) {
+		if info.IsDir() || !strings.HasSuffix(name, AgeExt) {
 			return false, ""
 		}
 
 		displayName := name
 		displayName = strings.TrimPrefix(displayName, root)
 		displayName = strings.TrimPrefix(displayName, "/")
-		displayName = strings.TrimSuffix(displayName, ageExt)
+		displayName = strings.TrimSuffix(displayName, AgeExt)
 
 		if pattern != nil && !pattern.MatchString(displayName) {
 			return false, ""

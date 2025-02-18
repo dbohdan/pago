@@ -21,6 +21,8 @@ import (
 	"strings"
 	"time"
 
+	"dbohdan.com/pago"
+
 	"filippo.io/age"
 	"filippo.io/age/armor"
 	"github.com/adrg/xdg"
@@ -72,7 +74,6 @@ type Config struct {
 }
 
 const (
-	ageExt           = ".age"
 	agentSocketPath  = "socket"
 	defaultLength    = "20"
 	defaultPattern   = "[A-Za-z0-9]"
@@ -152,7 +153,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 		if cmd.Input || cmd.Random {
 			generate = cmd.Random
 		} else {
-			generate, err = askYesNo("Generate a password?")
+			generate, err = pago.AskYesNo("Generate a password?")
 			if err != nil {
 				return err
 			}
@@ -161,7 +162,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 		if generate {
 			password, err = generatePassword(cmd.Pattern, cmd.Length)
 		} else {
-			password, err = readNewPassword(config.Confirm)
+			password, err = pago.ReadNewPassword(config.Confirm)
 		}
 	}
 	if err != nil {
@@ -173,7 +174,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 	}
 
 	if config.Git {
-		if err := commit(
+		if err := pago.Commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
@@ -245,7 +246,7 @@ func (cmd *ClipCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pickEntry(config.Store, name)
+		picked, err := pago.PickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -300,7 +301,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pickEntry(config.Store, name)
+		picked, err := pago.PickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -315,7 +316,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 	}
 
 	if !cmd.Force {
-		if choice, err := askYesNo(fmt.Sprintf("Delete entry '%s'?", name)); !choice || err != nil {
+		if choice, err := pago.AskYesNo(fmt.Sprintf("Delete entry '%s'?", name)); !choice || err != nil {
 			return err
 		}
 	}
@@ -341,7 +342,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 	}
 
 	if config.Git {
-		if err := commit(
+		if err := pago.Commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
@@ -369,7 +370,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pickEntry(config.Store, name)
+		picked, err := pago.PickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -392,14 +393,14 @@ func (cmd *EditCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
-	text, err := Edit(password, cmd.Save)
-	if err != nil && !errors.Is(err, CancelError) {
+	text, err := pago.Edit(password, cmd.Save)
+	if err != nil && !errors.Is(err, pago.CancelError) {
 		return fmt.Errorf("editor failed: %v", err)
 	}
 
 	fmt.Println()
 
-	if text == password || errors.Is(err, CancelError) {
+	if text == password || errors.Is(err, pago.CancelError) {
 		fmt.Fprintln(os.Stderr, "No changes made")
 		return nil
 	}
@@ -415,7 +416,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 	}
 
 	if config.Git {
-		if err := commit(
+		if err := pago.Commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
@@ -444,7 +445,7 @@ func (cmd *FindCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to compile regular expression: %v", err)
 	}
 
-	list, err := listFiles(config.Store, entryFilter(config.Store, pattern))
+	list, err := pago.ListFiles(config.Store, pago.EntryFilter(config.Store, pattern))
 	if err != nil {
 		return fmt.Errorf("failed to search entries: %v", err)
 	}
@@ -510,7 +511,7 @@ func (cmd *InitCmd) Run(config *Config) error {
 	var buf bytes.Buffer
 	armorWriter := armor.NewWriter(&buf)
 
-	password, err := readNewPassword(config.Confirm)
+	password, err := pago.ReadNewPassword(config.Confirm)
 	if err != nil {
 		return fmt.Errorf("failed to read password: %v", err)
 	}
@@ -550,11 +551,11 @@ func (cmd *InitCmd) Run(config *Config) error {
 	}
 
 	if config.Git {
-		if err := initGitRepo(config.Store); err != nil {
+		if err := pago.InitGitRepo(config.Store); err != nil {
 			return err
 		}
 
-		if err := commit(
+		if err := pago.Commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
@@ -585,7 +586,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 	}
 
 	// Get a list of all password entries.
-	entries, err := listFiles(config.Store, entryFilter(config.Store, nil))
+	entries, err := pago.ListFiles(config.Store, pago.EntryFilter(config.Store, nil))
 	if err != nil {
 		return fmt.Errorf("failed to list passwords: %v", err)
 	}
@@ -649,7 +650,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 			files[i] = file
 		}
 
-		if err := commit(
+		if err := pago.Commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
@@ -675,7 +676,7 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 		return err
 	}
 
-	newPassword, err := readNewPassword(config.Confirm)
+	newPassword, err := pago.ReadNewPassword(config.Confirm)
 	if err != nil {
 		return err
 	}
@@ -724,12 +725,12 @@ func (cmd *ShowCmd) Run(config *Config) error {
 	}
 
 	if !cmd.Pick && cmd.Name == "" {
-		return printStoreTree(config.Store)
+		return pago.PrintStoreTree(config.Store)
 	}
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pickEntry(config.Store, name)
+		picked, err := pago.PickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -845,7 +846,7 @@ func entryFile(passwordStore, name string) (string, error) {
 		return "", fmt.Errorf("entry name contains invalid characters matching %s", nameInvalidChars)
 	}
 
-	file := filepath.Join(passwordStore, name+ageExt)
+	file := filepath.Join(passwordStore, name+pago.AgeExt)
 
 	for path := file; path != "/"; path = filepath.Dir(path) {
 		if path == passwordStore {
@@ -910,7 +911,7 @@ func main() {
 			os.Exit(code)
 		}),
 		kong.Vars{
-			"defaultClip":     defaultClip,
+			"defaultClip":     pago.DefaultClip,
 			"defaultDataDir":  defaultDataDir,
 			"defaultGitEmail": defaultGitEmail,
 			"defaultGitName":  defaultGitName,

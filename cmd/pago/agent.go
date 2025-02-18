@@ -18,6 +18,8 @@ import (
 	"strings"
 	"syscall"
 
+	"dbohdan.com/pago"
+
 	"filippo.io/age"
 	"github.com/tidwall/redcon"
 	"github.com/valkey-io/valkey-go"
@@ -30,7 +32,7 @@ func (cmd *RestartCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	if err := lockMemory(); err != nil {
+	if err := pago.LockMemory(); err != nil {
 		return err
 	}
 
@@ -49,7 +51,7 @@ func (cmd *RunCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	if err := lockMemory(); err != nil {
+	if err := pago.LockMemory(); err != nil {
 		return err
 	}
 
@@ -61,7 +63,7 @@ func (cmd *StartCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	if err := lockMemory(); err != nil {
+	if err := pago.LockMemory(); err != nil {
 		return err
 	}
 

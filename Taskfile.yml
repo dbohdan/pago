@@ -1,6 +1,7 @@
 version: '3'
 
 vars:
+  cmd_dir: cmd/pago
   ext: '{{if eq OS "windows"}}.exe{{end}}'
 
 env:
@@ -22,15 +23,18 @@ tasks:
       - build_pago
 
   build_pago:
+    dir: '{{.cmd_dir}}'
     desc: 'Build the pago binary'
     cmds:
       - cmd: go build -trimpath
     sources:
       - '*.go'
+      - '../../*.go'
     generates:
       - pago
 
   clean:
+    dir: '{{.cmd_dir}}'
     desc: 'Clean up binaries'
     cmds:
       - rm -f pago pago.exe
@@ -40,11 +44,11 @@ tasks:
     deps:
       - build_pago
     cmds:
-      - VERSION=$(./pago{{.ext}} version) go run script/release.go
+      - VERSION=$({{.cmd_dir}}/pago{{.ext}} version) go run script/release.go
 
   test:
     desc: 'Run tests'
     deps:
       - build_pago
     cmds:
-      - go test
+      - go test ./...

@@ -3,7 +3,7 @@
 // License: MIT.
 // See the file LICENSE.
 
-package main
+package pago
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func lockMemory() error {
+func LockMemory() error {
 	if err := unix.Mlockall(unix.MCL_CURRENT | unix.MCL_FUTURE); err != nil {
 		return fmt.Errorf("failed to lock memory: %v", err)
 	}

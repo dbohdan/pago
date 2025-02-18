@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"dbohdan.com/pago"
+
 	"filippo.io/age"
 	"filippo.io/age/armor"
 )
@@ -114,7 +116,7 @@ func decryptIdentities(identitiesPath string) (string, error) {
 		return "", fmt.Errorf("failed to read identities file: %v", err)
 	}
 
-	password, err := secureRead("Enter password to unlock identities: ")
+	password, err := pago.SecureRead("Enter password to unlock identities: ")
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %v", err)
 	}

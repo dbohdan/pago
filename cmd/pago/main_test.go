@@ -16,6 +16,8 @@ import (
 	"strings"
 	"testing"
 
+	"dbohdan.com/pago"
+
 	"filippo.io/age"
 	"filippo.io/age/armor"
 	expect "github.com/Netflix/go-expect"
@@ -120,7 +122,7 @@ func TestBadUsage(t *testing.T) {
 
 func TestInit(t *testing.T) {
 	tree, err := withPagoDir(func(dataDir string) (string, error) {
-		return dirTree(dataDir, func(name string, info os.FileInfo) (bool, string) {
+		return pago.DirTree(dataDir, func(name string, info os.FileInfo) (bool, string) {
 			return true, name
 		})
 	})

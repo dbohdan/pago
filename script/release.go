@@ -12,8 +12,9 @@ import (
 
 const (
 	checksumFilename = "SHA512SUMS.txt"
-	projectName      = "memsparkline"
 	distDir          = "dist"
+	pkg              = "./cmd/pago"
+	projectName      = "pago"
 )
 
 type BuildTarget struct {
@@ -81,7 +82,7 @@ func build(dir string, target BuildTarget, version string) error {
 	filename := fmt.Sprintf("%s-v%s-%s-%s%s", projectName, version, system, arch, ext)
 	outputPath := filepath.Join(dir, filename)
 
-	cmd := exec.Command("go", "build", "-trimpath", "-o", outputPath, ".")
+	cmd := exec.Command("go", "build", "-trimpath", "-o", outputPath, pkg)
 	cmd.Env = append(os.Environ(),
 		"GOOS="+target.os,
 		"GOARCH="+target.arch,

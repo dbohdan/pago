@@ -3,7 +3,7 @@
 // License: MIT.
 // See the file LICENSE.
 
-package main
+package pago
 
 import (
 	"bufio"
@@ -18,9 +18,9 @@ import (
 )
 
 // Pick an entry using a fuzzy finder.
-func pickEntry(store string, query string) (string, error) {
+func PickEntry(store string, query string) (string, error) {
 	// Create a list of all passwords.
-	list, err := listFiles(store, entryFilter(store, nil))
+	list, err := ListFiles(store, EntryFilter(store, nil))
 	if err != nil {
 		return "", fmt.Errorf("failed to list passwords: %v", err)
 	}
@@ -48,7 +48,7 @@ func pickEntry(store string, query string) (string, error) {
 }
 
 // Read a password without echo if standard input is a terminal.
-func secureRead(prompt string) (string, error) {
+func SecureRead(prompt string) (string, error) {
 	fmt.Fprint(os.Stderr, prompt)
 
 	if term.IsTerminal(int(syscall.Stdin)) {
@@ -69,7 +69,7 @@ func secureRead(prompt string) (string, error) {
 	return scanner.Text(), nil
 }
 
-func askYesNo(prompt string) (bool, error) {
+func AskYesNo(prompt string) (bool, error) {
 	fmt.Fprintf(os.Stderr, "%s [y/n]: ", prompt)
 
 	// Save the terminal state to restore later.
@@ -100,8 +100,8 @@ func askYesNo(prompt string) (bool, error) {
 }
 
 // Ask the user to input a password, twice if confirm is true.
-func readNewPassword(confirm bool) (string, error) {
-	pass, err := secureRead("Enter password: ")
+func ReadNewPassword(confirm bool) (string, error) {
+	pass, err := SecureRead("Enter password: ")
 	if err != nil {
 		return "", err
 	}
@@ -111,7 +111,7 @@ func readNewPassword(confirm bool) (string, error) {
 	}
 
 	if confirm {
-		pass2, err := secureRead("Enter password (again): ")
+		pass2, err := SecureRead("Enter password (again): ")
 		if err != nil {
 			return "", err
 		}

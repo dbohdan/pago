@@ -3,7 +3,7 @@
 // License: MIT.
 // See the file LICENSE.
 
-package main
+package pago
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
-func initGitRepo(repoDir string) error {
+func InitGitRepo(repoDir string) error {
 	_, err := git.PlainInit(repoDir, false)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Git repository: %v", err)
@@ -23,7 +23,7 @@ func initGitRepo(repoDir string) error {
 	return nil
 }
 
-func commit(repoDir, authorName, authorEmail, message string, add []string) error {
+func Commit(repoDir, authorName, authorEmail, message string, add []string) error {
 	repo, err := git.PlainOpen(repoDir)
 	if err != nil {
 		return fmt.Errorf("failed to open Git repository: %v", err)
