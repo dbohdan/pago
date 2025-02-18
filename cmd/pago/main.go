@@ -34,7 +34,7 @@ import (
 
 type CLI struct {
 	// Global options.
-	Confirm  bool   `env:"${confirmEnv}" default:"true" negatable:"" help:"Enter passwords twice"`
+	Confirm  bool   `env:"${confirmEnv}" default:"true" negatable:"" help:"Enter passwords twice (${env})"`
 	Dir      string `short:"d" env:"${dataDirEnv}" default:"${defaultDataDir}" help:"Store location (${env})"`
 	Git      bool   `env:"${gitEnv}" default:"true" negatable:"" help:"Commit to Git (${env})"`
 	GitEmail string `env:"${gitEmailEnv}" default:"${defaultGitEmail}" help:"Email for Git commits (${env})"`
