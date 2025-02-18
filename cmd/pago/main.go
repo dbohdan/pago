@@ -82,7 +82,7 @@ const (
 	maxStepsPerChar  = 1000
 	nameInvalidChars = `[\n]`
 	storePath        = "store"
-	version          = "0.9.1"
+	version          = "0.9.2"
 	waitForSocket    = 3 * time.Second
 
 	clipEnv     = "PAGO_CLIP"
