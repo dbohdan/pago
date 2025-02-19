@@ -552,3 +552,72 @@ func TestShowTree(t *testing.T) {
 		t.Errorf("Expected %q in output", re)
 	}
 }
+
+func TestAgentStartPingStop(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		c, err := expect.NewConsole()
+		if err != nil {
+			return "", fmt.Errorf("failed to create console: %w", err)
+		}
+		defer c.Close()
+
+		socketPath := filepath.Join(dataDir, "agent.sock")
+		cmd := exec.Command(
+			commandPago,
+			"--dir", dataDir,
+			"--socket", socketPath,
+			"agent", "start",
+		)
+		cmd.Stdin = c.Tty()
+		cmd.Stdout = c.Tty()
+		cmd.Stderr = c.Tty()
+
+		err = cmd.Start()
+		if err != nil {
+			return "", fmt.Errorf("failed to start agent: %w", err)
+		}
+
+		_, err = c.ExpectString("Enter password")
+		if err != nil {
+			return "", fmt.Errorf("failed to get password prompt: %w", err)
+		}
+		_, _ = c.SendLine(password)
+
+		err = cmd.Wait()
+		if err != nil {
+			return "", fmt.Errorf("agent start failed: %w", err)
+		}
+
+		env := []string{"PAGO_DIR=" + dataDir, "PAGO_SOCK=" + socketPath}
+		stdout, stderr, err := runCommandEnv(
+			env,
+			"agent", "status",
+		)
+		if err != nil {
+			return stdout + "\n" + stderr, fmt.Errorf("agent status check failed: %w", err)
+		}
+
+		stdout, stderr, err = runCommandEnv(
+			env,
+			"agent", "stop",
+		)
+		if err != nil {
+			return stdout + "\n" + stderr, fmt.Errorf("agent stop failed: %w", err)
+		}
+
+		// Verify the agent is stopped by checking its status again.
+		stdout, stderr, err = runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir, "PAGO_SOCK=" + socketPath},
+			"agent", "status",
+		)
+		if err == nil {
+			return "", fmt.Errorf("agent status check should have failed after stop")
+		}
+
+		return "", nil
+	})
+
+	if err != nil {
+		t.Errorf("Agent test failed: %v", err)
+	}
+}
