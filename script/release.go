@@ -1,20 +1,28 @@
 package main
 
 import (
-	"crypto/sha512"
+	"archive/zip"
+	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
 )
 
 const (
-	checksumFilename = "SHA512SUMS.txt"
+	checksumFilename = "SHA256SUMS.txt"
+	dirPerms         = 0o755
 	distDir          = "dist"
-	pkg              = "./cmd/pago"
+	filePerms        = 0o644
 	projectName      = "pago"
+)
+
+var (
+	pkgs = []string{"./cmd/pago", "./cmd/pago-agent"}
 )
 
 type BuildTarget struct {
@@ -23,16 +31,23 @@ type BuildTarget struct {
 }
 
 func main() {
+	if err := buildAll(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
+
+func buildAll() error {
 	version := os.Getenv("VERSION")
 	if version == "" {
-		fmt.Fprintln(os.Stderr, "'VERSION' environment variable must be set")
-		os.Exit(1)
+		return errors.New("'VERSION' environment variable must be set")
 	}
 
 	releaseDir := filepath.Join(distDir, version)
-	if err := os.MkdirAll(releaseDir, 0755); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create release directory: %v\n", err)
-		os.Exit(1)
+	checksumFilePath := filepath.Join(releaseDir, checksumFilename)
+
+	if err := os.MkdirAll(releaseDir, dirPerms); err != nil {
+		return fmt.Errorf("failed to create release directory: %w", err)
 	}
 
 	targets := []BuildTarget{
@@ -46,23 +61,53 @@ func main() {
 		{"openbsd", "amd64"},
 	}
 
-	for _, target := range targets {
-		if err := build(releaseDir, target, version); err != nil {
-			fmt.Fprintf(os.Stderr, "Build failed for %s/%s: %v\n", target.os, target.arch, err)
-			os.Exit(1)
+	for i, target := range targets {
+		if i > 0 {
+			fmt.Println()
+		}
+		fmt.Printf("Building for %s/%s:\n", target.os, target.arch)
+
+		arch, system := userArchAndSystem(target)
+		targetDir := filepath.Join(
+			releaseDir,
+			fmt.Sprintf("%s-v%s-%s-%s", projectName, version, system, arch),
+		)
+
+		if err := os.MkdirAll(targetDir, dirPerms); err != nil {
+			return fmt.Errorf("failed to create target directory: %w", err)
+		}
+
+		var buildErrors []error
+		for _, pkg := range pkgs {
+			outputPath, err := build(target, targetDir, pkg)
+			if err != nil {
+				buildErrors = append(buildErrors, fmt.Errorf("build failed for %s on %s/%s: %w", pkg, target.os, target.arch, err))
+			}
+
+			if err := appendChecksum(checksumFilePath, outputPath); err != nil {
+				return err
+			}
+		}
+
+		if len(buildErrors) > 0 {
+			return errors.Join(buildErrors...)
+		}
+
+		zipPath := targetDir + ".zip"
+		if err := zipDirectory(zipPath, targetDir); err != nil {
+			return fmt.Errorf("failed to create ZIP archive: %w", err)
+		}
+
+		if err := os.RemoveAll(targetDir); err != nil {
+			return fmt.Errorf("failed to remove target directory after archive creation: %w", err)
 		}
 	}
+
+	return nil
 }
 
-func build(dir string, target BuildTarget, version string) error {
-	fmt.Printf("Building for %s/%s\n", target.os, target.arch)
-
-	ext := ""
-	if target.os == "windows" {
-		ext = ".exe"
-	}
-
-	// Map GOARCH and GOOS to user-facing names.
+// userArchAndSystem maps GOARCH and GOOS to user-facing names.
+func userArchAndSystem(target BuildTarget) (string, string) {
 	arch := target.arch
 	system := target.os
 
@@ -79,48 +124,115 @@ func build(dir string, target BuildTarget, version string) error {
 		arch = "aarch64"
 	}
 
-	filename := fmt.Sprintf("%s-v%s-%s-%s%s", projectName, version, system, arch, ext)
-	outputPath := filepath.Join(dir, filename)
+	return arch, system
+}
+
+func build(target BuildTarget, dir, pkg string) (string, error) {
+	fmt.Printf("    - %s\n", pkg)
+
+	ext := ""
+	if target.os == "windows" {
+		ext = ".exe"
+	}
+
+	outputPath := filepath.Join(dir, filepath.Base(pkg)+ext)
 
 	cmd := exec.Command("go", "build", "-trimpath", "-o", outputPath, pkg)
 	cmd.Env = append(os.Environ(),
-		"GOOS="+target.os,
-		"GOARCH="+target.arch,
+		fmt.Sprintf("GOOS=%s", target.os),
+		fmt.Sprintf("GOARCH=%s", target.arch),
 		"CGO_ENABLED=0",
 	)
 
 	if output, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("Build command failed: %v\nOutput:\n%s", err, output)
+		return "", fmt.Errorf("build command failed: %w (output: %q)", err, output)
 	}
 
-	return generateChecksum(outputPath, version)
+	return outputPath, nil
 }
 
-func generateChecksum(filePath, version string) error {
+func zipDirectory(zipPath, dirPath string) error {
+	zipFile, err := os.Create(zipPath)
+	if err != nil {
+		return fmt.Errorf("failed to create ZIP file: %v", err)
+	}
+	defer zipFile.Close()
+
+	zipWriter := zip.NewWriter(zipFile)
+	defer zipWriter.Close()
+
+	err = filepath.Walk(dirPath, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return nil
+		}
+
+		// Use a relative path in the ZIP archive.
+		relPath, err := filepath.Rel(dirPath, path)
+		if err != nil {
+			return fmt.Errorf("failed to get relative path: %v", err)
+		}
+
+		// Create an entry with the original modification time.
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return fmt.Errorf("failed to create ZIP header: %v", err)
+		}
+
+		header.Name = filepath.Join(filepath.Base(dirPath), relPath)
+		zipEntry, err := zipWriter.CreateHeader(header)
+		if err != nil {
+			return fmt.Errorf("failed to create ZIP entry: %v", err)
+		}
+
+		// Write the file contents.
+		file, err := os.Open(path)
+		if err != nil {
+			return fmt.Errorf("failed to open file for zipping: %v", err)
+		}
+		defer file.Close()
+
+		if _, err := io.Copy(zipEntry, file); err != nil {
+			return fmt.Errorf("failed to write zip entry: %v", err)
+		}
+
+		return nil
+	})
+
+	return err
+}
+
+func appendChecksum(checksumFilePath, filePath string) error {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("Failed to open file for checksumming: %v", err)
+		return fmt.Errorf("failed to open file for checksumming: %v", err)
 	}
 	defer f.Close()
 
-	h := sha512.New()
+	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return fmt.Errorf("Failed to calculate hash: %v", err)
+		return fmt.Errorf("failed to calculate hash: %v", err)
 	}
 
 	hash := hex.EncodeToString(h.Sum(nil))
 
-	checksumLine := fmt.Sprintf("%s  %s\n", hash, filepath.Base(filePath))
-
-	checksumFilePath := filepath.Join(filepath.Dir(filePath), checksumFilename)
-	f, err = os.OpenFile(checksumFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	relPath, err := filepath.Rel(filepath.Dir(checksumFilePath), filePath)
 	if err != nil {
-		return fmt.Errorf("Failed to open checksum file: %v", err)
+			return fmt.Errorf("failed to get relative path: %v", err)
+	}
+	checksumLine := fmt.Sprintf("%s  %s\n", hash, relPath)
+
+	f, err = os.OpenFile(checksumFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerms)
+	if err != nil {
+		return fmt.Errorf("failed to open checksum file: %w", err)
 	}
 	defer f.Close()
 
-	if _, err := f.WriteString(checksumLine); err != nil {
-		return fmt.Errorf("Failed to write checksum: %v", err)
+	if _, err := io.WriteString(f, checksumLine); err != nil {
+		return fmt.Errorf("failed to write checksum: %w", err)
 	}
 
 	return nil
