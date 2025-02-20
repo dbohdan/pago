@@ -182,6 +182,7 @@ func zipDirectory(zipPath, dirPath string) error {
 			return fmt.Errorf("failed to create ZIP header: %v", err)
 		}
 
+		header.Method = zip.Deflate
 		header.Name = filepath.Join(filepath.Base(dirPath), relPath)
 		zipEntry, err := zipWriter.CreateHeader(header)
 		if err != nil {
@@ -221,7 +222,7 @@ func appendChecksum(checksumFilePath, filePath string) error {
 
 	relPath, err := filepath.Rel(filepath.Dir(checksumFilePath), filePath)
 	if err != nil {
-			return fmt.Errorf("failed to get relative path: %v", err)
+		return fmt.Errorf("failed to get relative path: %v", err)
 	}
 	checksumLine := fmt.Sprintf("%s  %s\n", hash, relPath)
 
