@@ -1,0 +1,84 @@
+// pago - a command-line password manager.
+//
+// License: MIT.
+// See the file LICENSE.
+
+package main
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"dbohdan.com/pago"
+	"dbohdan.com/pago/agent"
+
+	"github.com/alecthomas/kong"
+)
+
+type CLI struct {
+	// Global options.
+	Mlock  bool   `env:"${MlockEnv}" default:"true" negatable:"" help:"Lock agent memory with mlockall(2) (${env})"`
+	Socket string `short:"s" env:"${SocketEnv}" default:"${DefaultSocket}" help:"Agent socket path (${env})"`
+
+	// Commands.
+	Run     RunCmd     `cmd:"" help:"Run the agent process"`
+	Version VersionCmd `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
+}
+
+type RunCmd struct{}
+
+func (cmd *RunCmd) Run(cli *CLI) error {
+	if cli.Mlock {
+		if err := LockMemory(); err != nil {
+			return err
+		}
+	}
+
+	socketDir := filepath.Dir(cli.Socket)
+	if err := os.MkdirAll(socketDir, pago.DirPerms); err != nil {
+		return fmt.Errorf("failed to create socket directory: %v", err)
+	}
+
+	return agent.Run(cli.Socket)
+}
+
+type VersionCmd struct{}
+
+func (cmd *VersionCmd) Run(cli *CLI) error {
+	fmt.Println(pago.Version)
+	return nil
+}
+
+func main() {
+	var cli CLI
+	parser := kong.Parse(&cli,
+		kong.Name("pago-agent"),
+		kong.Description("Password store agent for pago."),
+		kong.ConfigureHelp(kong.HelpOptions{
+			Compact: true,
+		}),
+		kong.Exit(func(code int) {
+			if code == 1 {
+				code = 2
+			}
+
+			os.Exit(code)
+		}),
+		kong.Vars{
+			"DefaultSocket": pago.DefaultSocket,
+
+			"MlockEnv":  pago.MlockEnv,
+			"SocketEnv": pago.SocketEnv,
+		},
+	)
+
+	ctx, err := parser.Parse(os.Args[1:])
+	if err != nil {
+		parser.FatalIfErrorf(err)
+	}
+
+	if err := ctx.Run(&cli); err != nil {
+		pago.ExitWithError("%v", err)
+	}
+}

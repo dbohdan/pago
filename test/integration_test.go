@@ -3,7 +3,7 @@
 // License: MIT.
 // See the file LICENSE.
 
-package main
+package test
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"dbohdan.com/pago"
+	"dbohdan.com/pago/tree"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	commandPago = "./pago"
-	password    = "test"
+	commandPago      = "../cmd/pago/pago"
+	commandPagoAgent = "../cmd/pago-agent/pago-agent"
+	password         = "test"
 )
 
 func runCommandEnv(env []string, args ...string) (string, string, error) {
@@ -122,7 +123,7 @@ func TestBadUsage(t *testing.T) {
 
 func TestInit(t *testing.T) {
 	tree, err := withPagoDir(func(dataDir string) (string, error) {
-		return pago.DirTree(dataDir, func(name string, info os.FileInfo) (bool, string) {
+		return tree.DirTree(dataDir, func(name string, info os.FileInfo) (bool, string) {
 			return true, name
 		})
 	})
@@ -562,9 +563,12 @@ func TestAgentStartPingStop(t *testing.T) {
 		defer c.Close()
 
 		socketPath := filepath.Join(dataDir, "agent.sock")
+
 		cmd := exec.Command(
 			commandPago,
+			"--agent", commandPagoAgent,
 			"--dir", dataDir,
+			"--no-mlock",
 			"--socket", socketPath,
 			"agent", "start",
 		)

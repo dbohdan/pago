@@ -1,8 +1,9 @@
 version: '3'
 
 vars:
-  cmd_dir: cmd/pago
   ext: '{{if eq OS "windows"}}.exe{{end}}'
+  pago_agent_cmd_dir: cmd/pago-agent
+  pago_cmd_dir: cmd/pago
 
 env:
   CGO_ENABLED: 0
@@ -21,34 +22,46 @@ tasks:
     desc: 'Build all components'
     deps:
       - build_pago
+      - build_pago_agent
 
   build_pago:
-    dir: '{{.cmd_dir}}'
-    desc: 'Build the pago binary'
+    dir: '{{.pago_cmd_dir}}'
+    desc: 'Build the pago executable'
     cmds:
       - cmd: go build -trimpath
     sources:
       - '*.go'
-      - '../../*.go'
+      - '../**/*.go'
     generates:
       - pago
 
-  clean:
-    dir: '{{.cmd_dir}}'
-    desc: 'Clean up binaries'
+  build_pago_agent:
+    dir: '{{.pago_agent_cmd_dir}}'
+    desc: 'Build the pago agent executable'
     cmds:
-      - rm -f pago pago.exe
+      - cmd: go build -trimpath
+    sources:
+      - '*.go'
+      - '../**/*.go'
+    generates:
+      - pago-agent
+
+  clean:
+    desc: 'Clean up executables'
+    cmds:
+      - rm -f {{.pago_cmd_dir}}/pago{{.ext}} {{.pago_agent_cmd_dir}}/pago-agent{{.ext}}
 
   release:
     desc: 'Prepare a release'
     deps:
       - build_pago
     cmds:
-      - VERSION=$({{.cmd_dir}}/pago{{.ext}} version) go run script/release.go
+      - VERSION=$({{.pago_cmd_dir}}/pago{{.ext}} version) go run script/release.go
 
   test:
     desc: 'Run tests'
     deps:
       - build_pago
+      - build_pago_agent
     cmds:
       - go test ./...

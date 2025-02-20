@@ -22,10 +22,15 @@ import (
 	"time"
 
 	"dbohdan.com/pago"
+	"dbohdan.com/pago/agent"
+	"dbohdan.com/pago/crypto"
+	"dbohdan.com/pago/editor"
+	"dbohdan.com/pago/git"
+	"dbohdan.com/pago/input"
+	"dbohdan.com/pago/tree"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
-	"github.com/adrg/xdg"
 	"github.com/alecthomas/kong"
 	"github.com/alecthomas/repr"
 	"github.com/anmitsu/go-shlex"
@@ -34,13 +39,15 @@ import (
 
 type CLI struct {
 	// Global options.
-	Confirm  bool   `env:"${confirmEnv}" default:"true" negatable:"" help:"Enter passwords twice (${env})"`
-	Dir      string `short:"d" env:"${dataDirEnv}" default:"${defaultDataDir}" help:"Store location (${env})"`
-	Git      bool   `env:"${gitEnv}" default:"true" negatable:"" help:"Commit to Git (${env})"`
-	GitEmail string `env:"${gitEmailEnv}" default:"${defaultGitEmail}" help:"Email for Git commits (${env})"`
-	GitName  string `env:"${gitNameEnv}" default:"${defaultGitName}" help:"Name for Git commits (${env})"`
-	Socket   string `short:"s" env:"${socketEnv}" default:"${defaultSocket}" help:"Agent socket path (blank to disable, ${env})"`
-	Verbose  bool   `short:"v" hidden:"" help:"Print debugging information"`
+	AgentExecutable string `short:"a" name:"agent" env:"${AgentEnv}" default:"${DefaultAgent}" help:"Agent executable (${env})"`
+	Confirm         bool   `env:"${ConfirmEnv}" default:"true" negatable:"" help:"Enter passwords twice (${env})"`
+	Dir             string `short:"d" env:"${DataDirEnv}" default:"${DefaultDataDir}" help:"Store location (${env})"`
+	Git             bool   `env:"${GitEnv}" default:"true" negatable:"" help:"Commit to Git (${env})"`
+	GitEmail        string `env:"${GitEmailEnv}" default:"${GitEmail}" help:"Email for Git commits (${env})"`
+	GitName         string `env:"${GitNameEnv}" default:"${GitName}" help:"Name for Git commits (${env})"`
+	Mlock           bool   `env:"${MlockEnv}" default:"true" negatable:"" help:"Lock agent memory with mlockall(2) (${env})"`
+	Socket          string `short:"s" env:"${SocketEnv}" default:"${DefaultSocket}" help:"Agent socket path (blank to disable, ${env})"`
+	Verbose         bool   `short:"v" hidden:"" help:"Print debugging information"`
 
 	// Commands.
 	Add      AddCmd      `cmd:"" aliases:"a" help:"Create new password entry"`
@@ -60,55 +67,31 @@ type CLI struct {
 }
 
 type Config struct {
-	Confirm    bool
-	DataDir    string
-	Git        bool
-	GitEmail   string
-	GitName    string
-	Home       string
-	Identities string
-	Recipients string
-	Socket     string
-	Store      string
-	Verbose    bool
+	AgentExecutable string
+	Confirm         bool
+	DataDir         string
+	Git             bool
+	GitEmail        string
+	GitName         string
+	Home            string
+	Identities      string
+	Mlock           bool
+	Recipients      string
+	Socket          string
+	Store           string
+	Verbose         bool
 }
 
 const (
-	agentSocketPath  = "socket"
-	defaultLength    = "20"
-	defaultPattern   = "[A-Za-z0-9]"
-	dirPerms         = 0o700
-	filePerms        = 0o600
-	maxStepsPerChar  = 1000
-	nameInvalidChars = `[\n]`
-	storePath        = "store"
-	version          = "0.9.2"
-	waitForSocket    = 3 * time.Second
-
-	clipEnv     = "PAGO_CLIP"
-	confirmEnv  = "PAGO_CONFIRM"
-	dataDirEnv  = "PAGO_DIR"
-	gitEnv      = "PAGO_GIT"
-	gitEmailEnv = "GIT_AUTHOR_EMAIL"
-	gitNameEnv  = "GIT_AUTHOR_NAME"
-	lengthEnv   = "PAGO_LENGTH"
-	patternEnv  = "PAGO_PATTERN"
-	socketEnv   = "PAGO_SOCK"
-	timeoutEnv  = "PAGO_TIMEOUT"
-)
-
-var (
-	defaultCacheDir = filepath.Join(xdg.CacheHome, "pago")
-	defaultDataDir  = filepath.Join(xdg.DataHome, "pago")
-	defaultGitEmail = "pago password manager"
-	defaultGitName  = "pago@localhost"
+	maxStepsPerChar = 1000
+	storePath       = "store"
 )
 
 type AddCmd struct {
 	Name string `arg:"" help:"Name of the password entry"`
 
-	Length  int    `short:"l" env:"${lengthEnv}" default:"${defaultLength}" help:"Password length (${env})"`
-	Pattern string `short:"p" env:"${patternEnv}" default:"${defaultPattern}" help:"Password pattern (regular expression, ${env})"`
+	Length  int    `short:"l" env:"${LengthEnv}" default:"${DefaultLength}" help:"Password length (${env})"`
+	Pattern string `short:"p" env:"${PatternEnv}" default:"${DefaultPattern}" help:"Password pattern (regular expression, ${env})"`
 
 	Force     bool `short:"f" help:"Overwrite existing entry"`
 	Input     bool `short:"i" help:"Input the password manually" xor:"mode"`
@@ -126,7 +109,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	file, err := entryFile(config.Store, cmd.Name)
+	file, err := pago.EntryFile(config.Store, cmd.Name)
 	if err != nil {
 		return err
 	}
@@ -153,7 +136,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 		if cmd.Input || cmd.Random {
 			generate = cmd.Random
 		} else {
-			generate, err = pago.AskYesNo("Generate a password?")
+			generate, err = input.AskYesNo("Generate a password?")
 			if err != nil {
 				return err
 			}
@@ -162,19 +145,19 @@ func (cmd *AddCmd) Run(config *Config) error {
 		if generate {
 			password, err = generatePassword(cmd.Pattern, cmd.Length)
 		} else {
-			password, err = pago.ReadNewPassword(config.Confirm)
+			password, err = input.ReadNewPassword(config.Confirm)
 		}
 	}
 	if err != nil {
 		return err
 	}
 
-	if err := saveEntry(config.Recipients, config.Store, cmd.Name, password); err != nil {
+	if err := crypto.SaveEntry(config.Recipients, config.Store, cmd.Name, password); err != nil {
 		return err
 	}
 
 	if config.Git {
-		if err := pago.Commit(
+		if err := git.Commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
@@ -191,7 +174,6 @@ func (cmd *AddCmd) Run(config *Config) error {
 
 type AgentCmd struct {
 	Restart RestartCmd `cmd:"" help:"Restart the agent process"`
-	Run     RunCmd     `cmd:"" help:"Run the agent"`
 	Start   StartCmd   `cmd:"" help:"Start the agent process"`
 	Status  StatusCmd  `cmd:"" help:"Check if agent is running"`
 	Stop    StopCmd    `cmd:"" help:"Stop the agent process"`
@@ -199,20 +181,86 @@ type AgentCmd struct {
 
 type RestartCmd struct{}
 
-type RunCmd struct{}
+func (cmd *RestartCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	_, _ = agent.Message(config.Socket, "SHUTDOWN")
+
+	identitiesText, err := crypto.DecryptIdentities(config.Identities)
+	if err != nil {
+		return err
+	}
+
+	return agent.StartProcess(
+		config.AgentExecutable,
+		config.Mlock,
+		config.Socket,
+		identitiesText,
+	)
+}
 
 type StartCmd struct{}
 
+func (cmd *StartCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	if err := agent.Ping(config.Socket); err == nil {
+		return fmt.Errorf("found agent responding on socket")
+	}
+
+	identitiesText, err := crypto.DecryptIdentities(config.Identities)
+	if err != nil {
+		return err
+	}
+
+	return agent.StartProcess(
+		config.AgentExecutable,
+		config.Mlock,
+		config.Socket,
+		identitiesText,
+	)
+}
+
 type StatusCmd struct{}
 
+func (cmd *StatusCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	err := agent.Ping(config.Socket)
+	if err == nil {
+		fmt.Println("Ping successful")
+		os.Exit(0)
+	} else {
+		fmt.Println("Failed to ping agent")
+		os.Exit(1)
+	}
+
+	return nil
+}
+
 type StopCmd struct{}
+
+func (cmd *StopCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	_, err := agent.Message(config.Socket, "SHUTDOWN")
+	return err
+}
 
 type ClipCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
-	Command string `short:"c" env:"${clipEnv}" default:"${defaultClip}" help:"Command for copying text from stdin to clipboard (${env})"`
+	Command string `short:"c" env:"${ClipEnv}" default:"${DefaultClip}" help:"Command for copying text from stdin to clipboard (${env})"`
 	Pick    bool   `short:"p" help:"Pick entry using fuzzy finder"`
-	Timeout int    `short:"t" env:"${timeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable, ${env})"`
+	Timeout int    `short:"t" env:"${TimeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable, ${env})"`
 }
 
 func copyToClipboard(command string, text string) error {
@@ -239,6 +287,42 @@ func englishPlural(singular, plural string, count int) string {
 	return plural
 }
 
+func decryptEntry(agentExecutable string, agentMlock bool, agentSocket, identities, passwordStore, name string) (string, error) {
+	if agentSocket == "" {
+		return crypto.DecryptEntry(identities, passwordStore, name)
+	}
+
+	file, err := pago.EntryFile(passwordStore, name)
+	if err != nil {
+		return "", err
+	}
+
+	encryptedData, err := os.ReadFile(file)
+	if err != nil {
+		return "", fmt.Errorf("failed to read password file: %v", err)
+	}
+
+	if err := agent.Ping(agentSocket); err != nil {
+		// Ping failed.
+		// Attempt to start the agent.
+		identitiesText, err := crypto.DecryptIdentities(identities)
+		if err != nil {
+			return "", err
+		}
+
+		if err := agent.StartProcess(agentExecutable, agentMlock, agentSocket, identitiesText); err != nil {
+			return "", fmt.Errorf("failed to start agent: %v", err)
+		}
+	}
+
+	password, err := agent.Decrypt(agentSocket, encryptedData)
+	if err != nil {
+		return "", err
+	}
+
+	return password, nil
+}
+
 func (cmd *ClipCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
@@ -246,7 +330,7 @@ func (cmd *ClipCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pago.PickEntry(config.Store, name)
+		picked, err := input.PickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -260,7 +344,14 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
-	password, err := decryptEntry(config.Socket, config.Identities, config.Store, name)
+	password, err := decryptEntry(
+		config.AgentExecutable,
+		config.Mlock,
+		config.Socket,
+		config.Identities,
+		config.Store,
+		name,
+	)
 	if err != nil {
 		return err
 	}
@@ -301,7 +392,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pago.PickEntry(config.Store, name)
+		picked, err := input.PickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -316,12 +407,12 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 	}
 
 	if !cmd.Force {
-		if choice, err := pago.AskYesNo(fmt.Sprintf("Delete entry '%s'?", name)); !choice || err != nil {
+		if choice, err := input.AskYesNo(fmt.Sprintf("Delete entry '%s'?", name)); !choice || err != nil {
 			return err
 		}
 	}
 
-	file, err := entryFile(config.Store, name)
+	file, err := pago.EntryFile(config.Store, name)
 	if err != nil {
 		return nil
 	}
@@ -342,7 +433,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 	}
 
 	if config.Git {
-		if err := pago.Commit(
+		if err := git.Commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
@@ -370,7 +461,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pago.PickEntry(config.Store, name)
+		picked, err := input.PickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -385,7 +476,14 @@ func (cmd *EditCmd) Run(config *Config) error {
 
 	if entryExists(config.Store, name) {
 		// Decrypt the existing password.
-		password, err = decryptEntry(config.Socket, config.Identities, config.Store, name)
+		password, err = decryptEntry(
+			config.AgentExecutable,
+			config.Mlock,
+			config.Socket,
+			config.Identities,
+			config.Store,
+			name,
+		)
 		if err != nil {
 			return err
 		}
@@ -393,30 +491,30 @@ func (cmd *EditCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
-	text, err := pago.Edit(password, cmd.Save)
-	if err != nil && !errors.Is(err, pago.CancelError) {
+	text, err := editor.Edit(password, cmd.Save)
+	if err != nil && !errors.Is(err, editor.CancelError) {
 		return fmt.Errorf("editor failed: %v", err)
 	}
 
 	fmt.Println()
 
-	if text == password || errors.Is(err, pago.CancelError) {
+	if text == password || errors.Is(err, editor.CancelError) {
 		fmt.Fprintln(os.Stderr, "No changes made")
 		return nil
 	}
 
 	// Save the edited password.
-	if err := saveEntry(config.Recipients, config.Store, name, text); err != nil {
+	if err := crypto.SaveEntry(config.Recipients, config.Store, name, text); err != nil {
 		return err
 	}
 
-	file, err := entryFile(config.Store, cmd.Name)
+	file, err := pago.EntryFile(config.Store, cmd.Name)
 	if err != nil {
 		return nil
 	}
 
 	if config.Git {
-		if err := pago.Commit(
+		if err := git.Commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
@@ -455,8 +553,8 @@ func (cmd *FindCmd) Run(config *Config) error {
 }
 
 type GenerateCmd struct {
-	Length  int    `short:"l" env:"${lengthEnv}" default:"${defaultLength}" help:"Password length (${env})"`
-	Pattern string `short:"p" env:"${patternEnv}" default:"${defaultPattern}" help:"Password pattern (regular expression, ${env})"`
+	Length  int    `short:"l" env:"${LengthEnv}" default:"${DefaultLength}" help:"Password length (${env})"`
+	Pattern string `short:"p" env:"${PatternEnv}" default:"${DefaultPattern}" help:"Password pattern (regular expression, ${env})"`
 }
 
 func (cmd *GenerateCmd) Run(config *Config) error {
@@ -511,7 +609,7 @@ func (cmd *InitCmd) Run(config *Config) error {
 	var buf bytes.Buffer
 	armorWriter := armor.NewWriter(&buf)
 
-	password, err := pago.ReadNewPassword(config.Confirm)
+	password, err := input.ReadNewPassword(config.Confirm)
 	if err != nil {
 		return fmt.Errorf("failed to read password: %v", err)
 	}
@@ -538,24 +636,24 @@ func (cmd *InitCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to close armor writer: %w", err)
 	}
 
-	if err := os.MkdirAll(config.Store, dirPerms); err != nil {
+	if err := os.MkdirAll(config.Store, pago.DirPerms); err != nil {
 		return fmt.Errorf("failed to create store directory: %v", err)
 	}
 
-	if err := os.WriteFile(config.Identities, buf.Bytes(), filePerms); err != nil {
+	if err := os.WriteFile(config.Identities, buf.Bytes(), pago.FilePerms); err != nil {
 		return fmt.Errorf("failed to write identities file: %w", err)
 	}
 
-	if err := os.WriteFile(config.Recipients, []byte(identity.Recipient().String()+"\n"), filePerms); err != nil {
+	if err := os.WriteFile(config.Recipients, []byte(identity.Recipient().String()+"\n"), pago.FilePerms); err != nil {
 		return fmt.Errorf("failed to write recipients file: %w", err)
 	}
 
 	if config.Git {
-		if err := pago.InitGitRepo(config.Store); err != nil {
+		if err := git.InitRepo(config.Store); err != nil {
 			return err
 		}
 
-		if err := pago.Commit(
+		if err := git.Commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
@@ -597,7 +695,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 
 	// Decrypt the identities once.
 	// This is so we don't have to ask the user for a password repeatedly without using the agent.
-	identitiesText, err := decryptIdentities(config.Identities)
+	identitiesText, err := crypto.DecryptIdentities(config.Identities)
 	if err != nil {
 		return err
 	}
@@ -610,7 +708,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 	// Decrypt each entry using the loaded identities and reencrypt it with the recipients.
 	count := 0
 	for _, entry := range entries {
-		file, err := entryFile(config.Store, entry)
+		file, err := crypto.EntryFile(config.Store, entry)
 		if err != nil {
 			return fmt.Errorf("failed to get path for %q: %v", entry, err)
 		}
@@ -620,7 +718,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 			return fmt.Errorf("failed to read password file %q: %v", entry, err)
 		}
 
-		r, err := wrapDecrypt(bytes.NewReader(encryptedData), ids...)
+		r, err := crypto.WrapDecrypt(bytes.NewReader(encryptedData), ids...)
 		if err != nil {
 			return fmt.Errorf("failed to decrypt %q: %v", entry, err)
 		}
@@ -630,7 +728,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 			return fmt.Errorf("failed to read decrypted content from %q: %v", entry, err)
 		}
 
-		if err := saveEntry(config.Recipients, config.Store, entry, string(passwordBytes)); err != nil {
+		if err := crypto.SaveEntry(config.Recipients, config.Store, entry, string(passwordBytes)); err != nil {
 			return fmt.Errorf("failed to reencrypt %q: %v", entry, err)
 		}
 
@@ -642,7 +740,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 	if config.Git {
 		files := make([]string, len(entries))
 		for i, entry := range entries {
-			file, err := entryFile(config.Store, entry)
+			file, err := crypto.EntryFile(config.Store, entry)
 			if err != nil {
 				return fmt.Errorf("failed to get path for %q: %v", entry, err)
 			}
@@ -650,7 +748,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 			files[i] = file
 		}
 
-		if err := pago.Commit(
+		if err := git.Commit(
 			config.Store,
 			config.GitName,
 			config.GitEmail,
@@ -671,12 +769,12 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	identitiesText, err := decryptIdentities(config.Identities)
+	identitiesText, err := crypto.DecryptIdentities(config.Identities)
 	if err != nil {
 		return err
 	}
 
-	newPassword, err := pago.ReadNewPassword(config.Confirm)
+	newPassword, err := input.ReadNewPassword(config.Confirm)
 	if err != nil {
 		return err
 	}
@@ -706,7 +804,7 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to close armor writer: %w", err)
 	}
 
-	if err := os.WriteFile(config.Identities, buf.Bytes(), filePerms); err != nil {
+	if err := os.WriteFile(config.Identities, buf.Bytes(), pago.FilePerms); err != nil {
 		return fmt.Errorf("failed to write identities file: %w", err)
 	}
 
@@ -725,12 +823,12 @@ func (cmd *ShowCmd) Run(config *Config) error {
 	}
 
 	if !cmd.Pick && cmd.Name == "" {
-		return pago.PrintStoreTree(config.Store)
+		return tree.PrintStoreTree(config.Store)
 	}
 
 	name := cmd.Name
 	if cmd.Pick {
-		picked, err := pago.PickEntry(config.Store, name)
+		picked, err := input.PickEntry(config.Store, name)
 		if err != nil {
 			return err
 		}
@@ -745,6 +843,8 @@ func (cmd *ShowCmd) Run(config *Config) error {
 	}
 
 	password, err := decryptEntry(
+		config.AgentExecutable,
+		config.Mlock,
 		config.Socket,
 		config.Identities,
 		config.Store,
@@ -769,7 +869,7 @@ func (cmd *VersionCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	fmt.Println(version)
+	fmt.Println(pago.Version)
 	return nil
 }
 
@@ -783,29 +883,22 @@ func initConfig(cli *CLI) (*Config, error) {
 	store := filepath.Join(cli.Dir, storePath)
 
 	config := Config{
-		Confirm:    cli.Confirm,
-		DataDir:    cli.Dir,
-		Git:        cli.Git,
-		GitEmail:   cli.GitEmail,
-		GitName:    cli.GitName,
-		Home:       home,
-		Identities: filepath.Join(cli.Dir, "identities"),
-		Recipients: filepath.Join(store, ".age-recipients"),
-		Socket:     cli.Socket,
-		Store:      store,
-		Verbose:    cli.Verbose,
+		AgentExecutable: cli.AgentExecutable,
+		Confirm:         cli.Confirm,
+		DataDir:         cli.Dir,
+		Git:             cli.Git,
+		GitEmail:        cli.GitEmail,
+		GitName:         cli.GitName,
+		Home:            home,
+		Identities:      filepath.Join(cli.Dir, "identities"),
+		Mlock:           cli.Mlock,
+		Recipients:      filepath.Join(store, ".age-recipients"),
+		Socket:          cli.Socket,
+		Store:           store,
+		Verbose:         cli.Verbose,
 	}
 
 	return &config, nil
-}
-
-func printError(format string, value any) {
-	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", value)
-}
-
-func exitWithError(format string, value any) {
-	printError(format, value)
-	os.Exit(1)
 }
 
 // Generate a random password where each character matches a regular expression.
@@ -839,31 +932,13 @@ func generatePassword(pattern string, length int) (string, error) {
 	return password.String(), nil
 }
 
-// Map an entry's name to its file path.
-func entryFile(passwordStore, name string) (string, error) {
-	re := regexp.MustCompile(nameInvalidChars)
-	if re.MatchString(name) {
-		return "", fmt.Errorf("entry name contains invalid characters matching %s", nameInvalidChars)
-	}
-
-	file := filepath.Join(passwordStore, name+pago.AgeExt)
-
-	for path := file; path != "/"; path = filepath.Dir(path) {
-		if path == passwordStore {
-			return file, nil
-		}
-	}
-
-	return "", fmt.Errorf("entry path is out of bounds")
-}
-
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !errors.Is(err, os.ErrNotExist)
 }
 
 func entryExists(passwordStore, name string) bool {
-	file, err := entryFile(passwordStore, name)
+	file, err := crypto.EntryFile(passwordStore, name)
 	if err != nil {
 		return false
 	}
@@ -871,28 +946,14 @@ func entryExists(passwordStore, name string) bool {
 	return pathExists(file)
 }
 
-func waitUntilAvailable(path string, maximum time.Duration) error {
-	start := time.Now()
-
-	for {
-		if _, err := os.Stat(path); err == nil {
-			return nil
-		}
-
-		elapsed := time.Since(start)
-		if elapsed > maximum {
-			return fmt.Errorf("reached %v timeout", maximum)
-		}
-
-		time.Sleep(50 * time.Millisecond)
-	}
-}
-
 func main() {
+	GitEmail := pago.DefaultGitEmail
+	GitName := pago.DefaultGitName
+
 	globalConfig, err := gitConfig.LoadConfig(gitConfig.GlobalScope)
 	if err == nil {
-		defaultGitEmail = globalConfig.User.Email
-		defaultGitName = globalConfig.User.Name
+		GitEmail = globalConfig.User.Email
+		GitName = globalConfig.User.Name
 	}
 
 	var cli CLI
@@ -911,33 +972,36 @@ func main() {
 			os.Exit(code)
 		}),
 		kong.Vars{
-			"defaultClip":     pago.DefaultClip,
-			"defaultDataDir":  defaultDataDir,
-			"defaultGitEmail": defaultGitEmail,
-			"defaultGitName":  defaultGitName,
-			"defaultLength":   defaultLength,
-			"defaultPattern":  defaultPattern,
-			"defaultSocket":   defaultSocket,
+			"DefaultAgent":   pago.DefaultAgent,
+			"DefaultClip":    pago.DefaultClip,
+			"DefaultDataDir": pago.DefaultDataDir,
+			"DefaultLength":  pago.DefaultPasswordLength,
+			"DefaultPattern": pago.DefaultPasswordPattern,
+			"DefaultSocket":  pago.DefaultSocket,
+			"GitEmail":       GitEmail,
+			"GitName":        GitName,
 
-			"clipEnv":     clipEnv,
-			"confirmEnv":  confirmEnv,
-			"dataDirEnv":  dataDirEnv,
-			"gitEnv":      gitEnv,
-			"gitEmailEnv": gitEmailEnv,
-			"gitNameEnv":  gitNameEnv,
-			"socketEnv":   socketEnv,
-			"timeoutEnv":  timeoutEnv,
-			"lengthEnv":   lengthEnv,
-			"patternEnv":  patternEnv,
+			"AgentEnv":    pago.AgentEnv,
+			"ClipEnv":     pago.ClipEnv,
+			"ConfirmEnv":  pago.ConfirmEnv,
+			"DataDirEnv":  pago.DataDirEnv,
+			"GitEmailEnv": pago.GitEmailEnv,
+			"GitEnv":      pago.GitEnv,
+			"GitNameEnv":  pago.GitNameEnv,
+			"MlockEnv":    pago.MlockEnv,
+			"SocketEnv":   pago.SocketEnv,
+			"TimeoutEnv":  pago.TimeoutEnv,
+			"LengthEnv":   pago.LengthEnv,
+			"PatternEnv":  pago.PatternEnv,
 		},
 	)
 
 	// Set the default command according to whether the data directory exists.
 	args := os.Args[1:]
 	if len(args) == 0 {
-		dataDir := os.Getenv(dataDirEnv)
+		dataDir := os.Getenv(pago.DataDirEnv)
 		if dataDir == "" {
-			dataDir = defaultDataDir
+			dataDir = pago.DefaultDataDir
 		}
 		storeDir := filepath.Join(dataDir, storePath)
 
@@ -955,18 +1019,18 @@ func main() {
 
 	config, err := initConfig(&cli)
 	if err != nil {
-		exitWithError("%v", err)
+		pago.ExitWithError("%v", err)
 	}
 	if config.Verbose {
 		printRepr(config)
 	}
 
-	err = os.MkdirAll(config.Store, dirPerms)
+	err = os.MkdirAll(config.Store, pago.DirPerms)
 	if err != nil {
-		exitWithError("failed to create password store directory: %v", err)
+		pago.ExitWithError("failed to create password store directory: %v", err)
 	}
 
 	if err := ctx.Run(config); err != nil {
-		exitWithError("%v", err)
+		pago.ExitWithError("%v", err)
 	}
 }

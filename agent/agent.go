@@ -1,11 +1,9 @@
-//go:build !windows
-
 // pago - a command-line password manager.
 //
 // License: MIT.
 // See the file LICENSE.
 
-package main
+package agent
 
 import (
 	"bytes"
@@ -19,136 +17,56 @@ import (
 	"syscall"
 
 	"dbohdan.com/pago"
+	"dbohdan.com/pago/crypto"
 
 	"filippo.io/age"
 	"github.com/tidwall/redcon"
 	"github.com/valkey-io/valkey-go"
 )
 
-var defaultSocket = filepath.Join(defaultCacheDir, agentSocketPath)
-
-func (cmd *RestartCmd) Run(config *Config) error {
-	if config.Verbose {
-		printRepr(cmd)
+func StartProcess(executable string, mlock bool, socket, identitiesText string) error {
+	mlockFlag := "--mlock"
+	if !mlock {
+		mlockFlag = "--no-mlock"
 	}
 
-	if err := pago.LockMemory(); err != nil {
-		return err
-	}
-
-	_, _ = messageAgent(config.Socket, "SHUTDOWN")
-
-	identitiesText, err := decryptIdentities(config.Identities)
-	if err != nil {
-		return err
-	}
-
-	return startAgentProcess(config.Socket, identitiesText)
-}
-
-func (cmd *RunCmd) Run(config *Config) error {
-	if config.Verbose {
-		printRepr(cmd)
-	}
-
-	if err := pago.LockMemory(); err != nil {
-		return err
-	}
-
-	return runAgent(config.Socket)
-}
-
-func (cmd *StartCmd) Run(config *Config) error {
-	if config.Verbose {
-		printRepr(cmd)
-	}
-
-	if err := pago.LockMemory(); err != nil {
-		return err
-	}
-
-	if err := pingAgent(config.Socket); err == nil {
-		return fmt.Errorf("found agent responding on socket")
-	}
-
-	identitiesText, err := decryptIdentities(config.Identities)
-	if err != nil {
-		return err
-	}
-
-	return startAgentProcess(config.Socket, identitiesText)
-}
-
-func (cmd *StatusCmd) Run(config *Config) error {
-	if config.Verbose {
-		printRepr(cmd)
-	}
-
-	err := pingAgent(config.Socket)
-	if err == nil {
-		fmt.Println("Ping successful")
-		os.Exit(0)
-	} else {
-		fmt.Println("Failed to ping agent")
-		os.Exit(1)
-	}
-
-	return nil
-}
-
-func (cmd *StopCmd) Run(config *Config) error {
-	if config.Verbose {
-		printRepr(cmd)
-	}
-
-	_, err := messageAgent(config.Socket, "SHUTDOWN")
-	return err
-}
-
-func startAgentProcess(agentSocket, identitiesText string) error {
-	// The agent is the same executable.
-	exe, err := os.Executable()
-	if err != nil {
-		return fmt.Errorf("failed to get executable path: %v", err)
-	}
-
-	cmd := exec.Command(exe, "agent", "run", "--socket", agentSocket)
+	cmd := exec.Command(executable, "run", mlockFlag, "--socket", socket)
 
 	// Start the process in the background.
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start agent: %v", err)
 	}
 
-	_ = os.Remove(agentSocket)
+	_ = os.Remove(socket)
 	// Don't wait for the process to finish.
 	go func() {
 		_ = cmd.Wait()
 	}()
 
-	if err := waitUntilAvailable(agentSocket, waitForSocket); err != nil {
+	if err := pago.WaitUntilAvailable(socket, pago.WaitForSocket); err != nil {
 		return fmt.Errorf("timed out waiting for agent socket")
 	}
 
-	_, err = messageAgent(agentSocket, "IDENTITIES", identitiesText)
+	_, err := Message(socket, "IDENTITIES", identitiesText)
 	return err
 }
 
-func runAgent(agentSocket string) error {
-	if err := pingAgent(agentSocket); err == nil {
+func Run(socket string) error {
+	if err := Ping(socket); err == nil {
 		return fmt.Errorf("found agent responding on socket")
 	}
 
-	socketDir := filepath.Dir(agentSocket)
-	if err := os.MkdirAll(socketDir, dirPerms); err != nil {
+	socketDir := filepath.Dir(socket)
+	if err := os.MkdirAll(socketDir, pago.DirPerms); err != nil {
 		return fmt.Errorf("failed to create socket directory: %v", err)
 	}
 
-	os.Remove(agentSocket)
+	os.Remove(socket)
 
 	identities := []age.Identity{}
 	srv := redcon.NewServerNetwork(
 		"unix",
-		agentSocket,
+		socket,
 		func(conn redcon.Conn, cmd redcon.Command) {
 			switch strings.ToUpper(string(cmd.Args[0])) {
 
@@ -162,7 +80,7 @@ func runAgent(agentSocket string) error {
 
 				// Decrypt the data.
 				reader := bytes.NewReader(encryptedData)
-				decryptedReader, err := wrapDecrypt(reader, identities...)
+				decryptedReader, err := crypto.WrapDecrypt(reader, identities...)
 				if err != nil {
 					conn.WriteError("ERR failed to decrypt: " + err.Error())
 					return
@@ -218,22 +136,22 @@ func runAgent(agentSocket string) error {
 			return
 		}
 
-		if err := os.Chmod(agentSocket, filePerms); err != nil {
-			exitWithError("failed to set permissions on agent socket: %v", err)
+		if err := os.Chmod(socket, pago.FilePerms); err != nil {
+			pago.ExitWithError("failed to set permissions on agent socket: %v", err)
 		}
 	}()
 
 	return srv.ListenServeAndSignal(errc)
 }
 
-func messageAgent(agentSocket string, args ...string) (string, error) {
+func Message(socket string, args ...string) (string, error) {
 	// Check socket security.
-	if err := checkSocketSecurity(agentSocket); err != nil {
+	if err := checkSocketSecurity(socket); err != nil {
 		return "", fmt.Errorf("socket security check failed: %v", err)
 	}
 
 	// Connect to the server.
-	opts, err := valkey.ParseURL("unix://" + agentSocket)
+	opts, err := valkey.ParseURL("unix://" + socket)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse socket URL: %v", err)
 	}
@@ -269,23 +187,23 @@ func messageAgent(agentSocket string, args ...string) (string, error) {
 	return string(result), nil
 }
 
-func pingAgent(agentSocket string) error {
-	_, err := messageAgent(agentSocket)
+func Ping(socket string) error {
+	_, err := Message(socket)
 	return err
 }
 
-func decryptWithAgent(agentSocket string, data []byte) (string, error) {
-	return messageAgent(agentSocket, "DECRYPT", valkey.BinaryString(data))
+func Decrypt(socket string, data []byte) (string, error) {
+	return Message(socket, "DECRYPT", valkey.BinaryString(data))
 }
 
-func checkSocketSecurity(agentSocket string) error {
-	info, err := os.Stat(agentSocket)
+func checkSocketSecurity(socket string) error {
+	info, err := os.Stat(socket)
 	if err != nil {
 		return fmt.Errorf("failed to stat socket: %v", err)
 	}
 
 	// Check socket permissions.
-	if info.Mode().Perm() != filePerms {
+	if info.Mode().Perm() != pago.FilePerms {
 		return fmt.Errorf("incorrect socket permissions: %v", info.Mode().Perm())
 	}
 

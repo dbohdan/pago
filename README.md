@@ -68,6 +68,7 @@ Once Go is installed on your system, run the following command:
 
 ```
 go install dbohdan.com/pago/cmd/pago@latest
+go install dbohdan.com/pago/cmd/pago-agent@latest
 ```
 
 Shell completion files for Bash and fish are available in [`completions/`](completions/).
@@ -185,6 +186,12 @@ pago show foo/bar
 # Start manually.
 pago agent start
 
+# By default, the agent locks its memory to prevent secrets from being written to swap.
+# You may need to run the command `ulimit -l 100000` to let it lock enough memory.
+# Alternatively, you can disable memory locking
+# with the environment variable `PAGO_MLOCK=0` or the flag `--no-mlock`.
+pago agent start --no-mlock
+
 # Run without an agent.
 pago -s '' show foo/bar
 
@@ -194,6 +201,8 @@ pago agent stop
 
 ### Environment variables
 
+- `PAGO_AGENT`:
+  The agent executable path
 - `PAGO_CLIP`:
   The command to use to copy the password to the clipboard.
   The default differs by platform.
@@ -208,6 +217,9 @@ pago agent stop
   Whether to use Git
 - `PAGO_LENGTH`:
   The default length of random passwords
+- `PAGO_MLOCK`:
+  Whether the agent should lock its memory using [mlockall(2)](https://pubs.opengroup.org/onlinepubs/9799919799/functions/mlockall.html) to prevent secrets from being written to swap.
+  `0` to disable.
 - `PAGO_PATTERN`:
   The default character pattern (regular expression) for random passwords
 - `PAGO_SOCK`:

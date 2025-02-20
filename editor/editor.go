@@ -3,7 +3,7 @@
 // License: MIT.
 // See the file LICENSE.
 
-package pago
+package editor
 
 import (
 	"fmt"

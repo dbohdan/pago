@@ -11,76 +11,51 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	"github.com/xlab/treeprint"
+	"time"
 )
 
-func DirTree(root string, transform func(name string, info os.FileInfo) (bool, string)) (string, error) {
-	tree := treeprint.NewWithRoot(filepath.Base(root))
-	visited := make(map[string]treeprint.Tree)
-
-	err := filepath.Walk(root, func(name string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		name, err = filepath.Abs(name)
-		if err != nil {
-			return err
-		}
-
-		keep, displayName := transform(name, info)
-		if !keep {
-			return nil
-		}
-
-		if len(visited) == 0 {
-			visited[name] = tree
-			return nil
-		}
-
-		parent, ok := visited[filepath.Dir(name)]
-		if !ok {
-			return nil
-		}
-
-		var newTree treeprint.Tree
-		if info.IsDir() {
-			newTree = parent.AddBranch(displayName)
-		} else {
-			newTree = parent.AddNode(displayName)
-		}
-
-		visited[name] = newTree
-
-		return nil
-	})
-	if err != nil {
-		return "", err
+// Map an entry's name to its file path.
+func EntryFile(passwordStore, name string) (string, error) {
+	re := regexp.MustCompile(NameInvalidChars)
+	if re.MatchString(name) {
+		return "", fmt.Errorf("entry name contains invalid characters matching %s", NameInvalidChars)
 	}
 
-	return tree.String(), nil
+	file := filepath.Join(passwordStore, name+AgeExt)
+
+	for path := file; path != "/"; path = filepath.Dir(path) {
+		if path == passwordStore {
+			return file, nil
+		}
+	}
+
+	return "", fmt.Errorf("entry path is out of bounds")
 }
 
-func PrintStoreTree(store string) error {
-	tree, err := DirTree(store, func(name string, info os.FileInfo) (bool, string) {
-		if strings.HasPrefix(info.Name(), ".") {
-			return false, ""
+func WaitUntilAvailable(path string, maximum time.Duration) error {
+	start := time.Now()
+
+	for {
+		if _, err := os.Stat(path); err == nil {
+			return nil
 		}
 
-		displayName := strings.TrimSuffix(info.Name(), AgeExt)
-		if info.IsDir() {
-			displayName += "/"
+		elapsed := time.Since(start)
+		if elapsed > maximum {
+			return fmt.Errorf("reached %v timeout", maximum)
 		}
 
-		return true, displayName
-	})
-	if err != nil {
-		return fmt.Errorf("failed to build tree: %v", err)
+		time.Sleep(50 * time.Millisecond)
 	}
+}
 
-	fmt.Print(tree)
-	return nil
+func PrintError(format string, value any) {
+	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", value)
+}
+
+func ExitWithError(format string, value any) {
+	PrintError(format, value)
+	os.Exit(1)
 }
 
 func ListFiles(root string, transform func(name string, info os.FileInfo) (bool, string)) ([]string, error) {

@@ -3,7 +3,7 @@
 // License: MIT.
 // See the file LICENSE.
 
-package pago
+package input
 
 import (
 	"bufio"
@@ -13,6 +13,8 @@ import (
 	"strings"
 	"syscall"
 
+	"dbohdan.com/pago"
+
 	"github.com/ktr0731/go-fuzzyfinder"
 	"golang.org/x/term"
 )
@@ -20,7 +22,7 @@ import (
 // Pick an entry using a fuzzy finder.
 func PickEntry(store string, query string) (string, error) {
 	// Create a list of all passwords.
-	list, err := ListFiles(store, EntryFilter(store, nil))
+	list, err := pago.ListFiles(store, pago.EntryFilter(store, nil))
 	if err != nil {
 		return "", fmt.Errorf("failed to list passwords: %v", err)
 	}

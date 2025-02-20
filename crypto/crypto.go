@@ -3,7 +3,7 @@
 // License: MIT.
 // See the file LICENSE.
 
-package main
+package crypto
 
 import (
 	"bytes"
@@ -12,16 +12,18 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"dbohdan.com/pago"
+	"dbohdan.com/pago/input"
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
 )
 
 // Parse the entire text of an age recipients file.
-func parseRecipients(contents string) ([]age.Recipient, error) {
+func ParseRecipients(contents string) ([]age.Recipient, error) {
 	var recips []age.Recipient
 
 	for _, line := range strings.Split(contents, "\n") {
@@ -42,23 +44,23 @@ func parseRecipients(contents string) ([]age.Recipient, error) {
 }
 
 // Encrypt the password and save it to a file.
-func saveEntry(recipients, passwordStore, name, password string) error {
+func SaveEntry(recipients, passwordStore, name, password string) error {
 	recipientsData, err := os.ReadFile(recipients)
 	if err != nil {
 		return fmt.Errorf("failed to read recipients file: %v", err)
 	}
 
-	recips, err := parseRecipients(string(recipientsData))
+	recips, err := ParseRecipients(string(recipientsData))
 	if err != nil {
 		return err
 	}
 
-	dest, err := entryFile(passwordStore, name)
+	dest, err := pago.EntryFile(passwordStore, name)
 	if err != nil {
 		return err
 	}
 
-	err = os.MkdirAll(filepath.Dir(dest), dirPerms)
+	err = os.MkdirAll(filepath.Dir(dest), pago.DirPerms)
 	if err != nil {
 		return fmt.Errorf("failed to create output path: %v", err)
 	}
@@ -91,7 +93,7 @@ func saveEntry(recipients, passwordStore, name, password string) error {
 }
 
 // Returns a reader that can handle both armored and binary age files.
-func wrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
+func WrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
 	buffer := make([]byte, len(armor.Header))
 
 	// Check if the input starts with an armor header.
@@ -110,13 +112,13 @@ func wrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
 	return age.Decrypt(r, identities...)
 }
 
-func decryptIdentities(identitiesPath string) (string, error) {
+func DecryptIdentities(identitiesPath string) (string, error) {
 	encryptedData, err := os.ReadFile(identitiesPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read identities file: %v", err)
 	}
 
-	password, err := pago.SecureRead("Enter password to unlock identities: ")
+	password, err := input.SecureRead("Enter password to unlock identities: ")
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %v", err)
 	}
@@ -127,7 +129,7 @@ func decryptIdentities(identitiesPath string) (string, error) {
 		return "", fmt.Errorf("failed to create password-based identity: %v", err)
 	}
 
-	r, err := wrapDecrypt(bytes.NewReader(encryptedData), identity)
+	r, err := WrapDecrypt(bytes.NewReader(encryptedData), identity)
 	if err != nil {
 		return "", fmt.Errorf("failed to decrypt identities: %v", err)
 	}
@@ -140,8 +142,8 @@ func decryptIdentities(identitiesPath string) (string, error) {
 	return string(decrypted), nil
 }
 
-func decryptEntry(agentSocket, identities, passwordStore, name string) (string, error) {
-	file, err := entryFile(passwordStore, name)
+func DecryptEntry(identities, passwordStore, name string) (string, error) {
+	file, err := pago.EntryFile(passwordStore, name)
 	if err != nil {
 		return "", err
 	}
@@ -151,32 +153,7 @@ func decryptEntry(agentSocket, identities, passwordStore, name string) (string, 
 		return "", fmt.Errorf("failed to read password file: %v", err)
 	}
 
-	// If an agent socket is configured, try to use the agent.
-	if agentSocket != "" {
-		if err := pingAgent(agentSocket); err != nil {
-			// Ping failed.
-			// Attempt to start the agent.
-			identitiesText, err := decryptIdentities(identities)
-			if err != nil {
-				return "", err
-			}
-
-			if err := startAgentProcess(agentSocket, identitiesText); err != nil {
-				return "", fmt.Errorf("failed to start agent: %v", err)
-			}
-		}
-
-		password, err := decryptWithAgent(agentSocket, encryptedData)
-		if err != nil {
-			return "", err
-		}
-
-		return password, nil
-	}
-
-	// When no agent socket is configured, decrypt directly.
-	// Decrypt the password-protected identities file first.
-	identitiesText, err := decryptIdentities(identities)
+	identitiesText, err := DecryptIdentities(identities)
 	if err != nil {
 		return "", err
 	}
@@ -186,7 +163,7 @@ func decryptEntry(agentSocket, identities, passwordStore, name string) (string, 
 		return "", fmt.Errorf("failed to parse identities: %v", err)
 	}
 
-	r, err := wrapDecrypt(bytes.NewReader(encryptedData), ids...)
+	r, err := WrapDecrypt(bytes.NewReader(encryptedData), ids...)
 	if err != nil {
 		return "", fmt.Errorf("failed to decrypt: %v", err)
 	}
@@ -197,4 +174,21 @@ func decryptEntry(agentSocket, identities, passwordStore, name string) (string, 
 	}
 
 	return string(password), nil
+}
+
+func EntryFile(passwordStore, name string) (string, error) {
+	re := regexp.MustCompile(pago.NameInvalidChars)
+	if re.MatchString(name) {
+		return "", fmt.Errorf("entry name contains invalid characters matching %s", pago.NameInvalidChars)
+	}
+
+	file := filepath.Join(passwordStore, name+pago.AgeExt)
+
+	for path := file; path != "/"; path = filepath.Dir(path) {
+		if path == passwordStore {
+			return file, nil
+		}
+	}
+
+	return "", fmt.Errorf("entry path is out of bounds")
 }

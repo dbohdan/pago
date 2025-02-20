@@ -3,19 +3,19 @@
 // License: MIT.
 // See the file LICENSE.
 
-package pago
+package git
 
 import (
 	"fmt"
 	"path/filepath"
 	"time"
 
-	"github.com/go-git/go-git/v5"
+	gogit "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
-func InitGitRepo(repoDir string) error {
-	_, err := git.PlainInit(repoDir, false)
+func InitRepo(repoDir string) error {
+	_, err := gogit.PlainInit(repoDir, false)
 	if err != nil {
 		return fmt.Errorf("failed to initialize Git repository: %v", err)
 	}
@@ -24,7 +24,7 @@ func InitGitRepo(repoDir string) error {
 }
 
 func Commit(repoDir, authorName, authorEmail, message string, add []string) error {
-	repo, err := git.PlainOpen(repoDir)
+	repo, err := gogit.PlainOpen(repoDir)
 	if err != nil {
 		return fmt.Errorf("failed to open Git repository: %v", err)
 	}
@@ -46,7 +46,7 @@ func Commit(repoDir, authorName, authorEmail, message string, add []string) erro
 		}
 	}
 
-	_, err = w.Commit(message, &git.CommitOptions{
+	_, err = w.Commit(message, &gogit.CommitOptions{
 		Author: &object.Signature{
 			Name:  authorName,
 			Email: authorEmail,
