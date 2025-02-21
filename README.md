@@ -64,15 +64,17 @@ It has been ported from POSIX shell to Tcl to Go and from [GPG](https://gnupg.or
 ## Installation
 
 You will need Go 1.22 or later to install pago.
-Once Go is installed on your system, run the following command:
+Once Go is installed on your system, run the following commands:
 
-```
+```shell
+# pago and pago-agent are two separate binaries.
+# You should install both unless you have a specific reason not to.
 go install dbohdan.com/pago/cmd/pago@latest
 go install dbohdan.com/pago/cmd/pago-agent@latest
 ```
 
 Shell completion files for Bash and fish are available in [`completions/`](completions/).
-To install completions for fish, run `install.fish`.
+To install completions for fish, clone the repository and run `install.fish`.
 
 ## Supported platforms
 
@@ -202,7 +204,7 @@ pago agent stop
 ### Environment variables
 
 - `PAGO_AGENT`:
-  The agent executable path
+  The agent executable
 - `PAGO_CLIP`:
   The command to use to copy the password to the clipboard.
   The default differs by platform.
