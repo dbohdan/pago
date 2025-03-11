@@ -31,7 +31,7 @@ tasks:
       - cmd: go build -trimpath
     sources:
       - '*.go'
-      - '../**/*.go'
+      - '../../**/*.go'
     generates:
       - pago
 
@@ -42,7 +42,7 @@ tasks:
       - cmd: go build -trimpath
     sources:
       - '*.go'
-      - '../**/*.go'
+      - '../../**/*.go'
     generates:
       - pago-agent
 
