@@ -1,7 +1,6 @@
 # pago
 
-> 🚧 **[Alpha](https://en.wikipedia.org/wiki/Software_release_life_cycle#Alpha) software.**
-> This project is in early development.
+> 🚧 **pago is in early [beta](https://en.wikipedia.org/wiki/Software_release_life_cycle#Beta).**
 > Expect bugs, security vulnerabilities, and potential data loss.
 
 **pago** is a command-line password manager.
