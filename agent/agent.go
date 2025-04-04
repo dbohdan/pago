@@ -24,13 +24,13 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-func StartProcess(executable string, mlock bool, socket, identitiesText string) error {
-	mlockFlag := "--mlock"
-	if !mlock {
-		mlockFlag = "--no-mlock"
+func StartProcess(executable string, memlock bool, socket, identitiesText string) error {
+	memlockFlag := "--memlock"
+	if !memlock {
+		memlockFlag = "--no-memlock"
 	}
 
-	cmd := exec.Command(executable, "run", mlockFlag, "--socket", socket)
+	cmd := exec.Command(executable, "run", memlockFlag, "--socket", socket)
 
 	// Start the process in the background.
 	if err := cmd.Start(); err != nil {

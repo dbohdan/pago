@@ -568,7 +568,7 @@ func TestAgentStartPingStop(t *testing.T) {
 			commandPago,
 			"--agent", commandPagoAgent,
 			"--dir", dataDir,
-			"--no-mlock",
+			"--no-memlock",
 			"--socket", socketPath,
 			"agent", "start",
 		)

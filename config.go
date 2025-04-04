@@ -35,7 +35,7 @@ const (
 	GitEnv      = "PAGO_GIT"
 	GitNameEnv  = "GIT_AUTHOR_NAME"
 	LengthEnv   = "PAGO_LENGTH"
-	MlockEnv    = "PAGO_MLOCK"
+	MemlockEnv  = "PAGO_MEMLOCK"
 	PatternEnv  = "PAGO_PATTERN"
 	SocketEnv   = "PAGO_SOCK"
 	TimeoutEnv  = "PAGO_TIMEOUT"

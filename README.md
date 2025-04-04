@@ -190,8 +190,8 @@ pago agent start
 # By default, the agent locks its memory to prevent secrets from being written to swap.
 # You may need to run the command `ulimit -l 100000` to let it lock enough memory.
 # Alternatively, you can disable memory locking
-# with the environment variable `PAGO_MLOCK=0` or the flag `--no-mlock`.
-pago agent start --no-mlock
+# with the environment variable `PAGO_MEMLOCK=0` or the flag `--no-memlock`.
+pago agent start --no-memlock
 
 # Run without an agent.
 pago -s '' show foo/bar
@@ -218,7 +218,7 @@ pago agent stop
   Whether to use Git
 - `PAGO_LENGTH`:
   The default length of random passwords
-- `PAGO_MLOCK`:
+- `PAGO_MEMLOCK`:
   Whether the agent should lock its memory using [mlockall(2)](https://pubs.opengroup.org/onlinepubs/9799919799/functions/mlockall.html) to prevent secrets from being written to swap.
   `0` to disable.
 - `PAGO_PATTERN`:

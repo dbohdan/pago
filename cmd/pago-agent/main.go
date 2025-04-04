@@ -18,8 +18,8 @@ import (
 
 type CLI struct {
 	// Global options.
-	Mlock  bool   `env:"${MlockEnv}" default:"true" negatable:"" help:"Lock agent memory with mlockall(2) (${env})"`
-	Socket string `short:"s" env:"${SocketEnv}" default:"${DefaultSocket}" help:"Agent socket path (${env})"`
+	Memlock bool   `env:"${MemlockEnv}" default:"true" negatable:"" help:"Lock agent memory with mlockall(2) (${env})"`
+	Socket  string `short:"s" env:"${SocketEnv}" default:"${DefaultSocket}" help:"Agent socket path (${env})"`
 
 	// Commands.
 	Run     RunCmd     `cmd:"" help:"Run the agent process"`
@@ -29,7 +29,7 @@ type CLI struct {
 type RunCmd struct{}
 
 func (cmd *RunCmd) Run(cli *CLI) error {
-	if cli.Mlock {
+	if cli.Memlock {
 		if err := LockMemory(); err != nil {
 			return err
 		}
@@ -68,8 +68,8 @@ func main() {
 		kong.Vars{
 			"DefaultSocket": pago.DefaultSocket,
 
-			"MlockEnv":  pago.MlockEnv,
-			"SocketEnv": pago.SocketEnv,
+			"MemlockEnv": pago.MemlockEnv,
+			"SocketEnv":  pago.SocketEnv,
 		},
 	)
 

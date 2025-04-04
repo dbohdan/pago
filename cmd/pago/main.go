@@ -45,7 +45,7 @@ type CLI struct {
 	Git             bool   `env:"${GitEnv}" default:"true" negatable:"" help:"Commit to Git (${env})"`
 	GitEmail        string `env:"${GitEmailEnv}" default:"${GitEmail}" help:"Email for Git commits (${env})"`
 	GitName         string `env:"${GitNameEnv}" default:"${GitName}" help:"Name for Git commits (${env})"`
-	Mlock           bool   `env:"${MlockEnv}" default:"true" negatable:"" help:"Lock agent memory with mlockall(2) (${env})"`
+	Memlock         bool   `env:"${MemlockEnv}" default:"true" negatable:"" help:"Lock agent memory with mlockall(2) (${env})"`
 	Socket          string `short:"s" env:"${SocketEnv}" default:"${DefaultSocket}" help:"Agent socket path (blank to disable, ${env})"`
 	Verbose         bool   `short:"v" hidden:"" help:"Print debugging information"`
 
@@ -75,7 +75,7 @@ type Config struct {
 	GitName         string
 	Home            string
 	Identities      string
-	Mlock           bool
+	Memlock         bool
 	Recipients      string
 	Socket          string
 	Store           string
@@ -195,7 +195,7 @@ func (cmd *RestartCmd) Run(config *Config) error {
 
 	return agent.StartProcess(
 		config.AgentExecutable,
-		config.Mlock,
+		config.Memlock,
 		config.Socket,
 		identitiesText,
 	)
@@ -219,7 +219,7 @@ func (cmd *StartCmd) Run(config *Config) error {
 
 	return agent.StartProcess(
 		config.AgentExecutable,
-		config.Mlock,
+		config.Memlock,
 		config.Socket,
 		identitiesText,
 	)
@@ -287,7 +287,7 @@ func englishPlural(singular, plural string, count int) string {
 	return plural
 }
 
-func decryptEntry(agentExecutable string, agentMlock bool, agentSocket, identities, passwordStore, name string) (string, error) {
+func decryptEntry(agentExecutable string, agentMemlock bool, agentSocket, identities, passwordStore, name string) (string, error) {
 	if agentSocket == "" {
 		return crypto.DecryptEntry(identities, passwordStore, name)
 	}
@@ -310,7 +310,7 @@ func decryptEntry(agentExecutable string, agentMlock bool, agentSocket, identiti
 			return "", err
 		}
 
-		if err := agent.StartProcess(agentExecutable, agentMlock, agentSocket, identitiesText); err != nil {
+		if err := agent.StartProcess(agentExecutable, agentMemlock, agentSocket, identitiesText); err != nil {
 			return "", fmt.Errorf("failed to start agent: %v", err)
 		}
 	}
@@ -346,7 +346,7 @@ func (cmd *ClipCmd) Run(config *Config) error {
 
 	password, err := decryptEntry(
 		config.AgentExecutable,
-		config.Mlock,
+		config.Memlock,
 		config.Socket,
 		config.Identities,
 		config.Store,
@@ -478,7 +478,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 		// Decrypt the existing password.
 		password, err = decryptEntry(
 			config.AgentExecutable,
-			config.Mlock,
+			config.Memlock,
 			config.Socket,
 			config.Identities,
 			config.Store,
@@ -844,7 +844,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 
 	password, err := decryptEntry(
 		config.AgentExecutable,
-		config.Mlock,
+		config.Memlock,
 		config.Socket,
 		config.Identities,
 		config.Store,
@@ -891,7 +891,7 @@ func initConfig(cli *CLI) (*Config, error) {
 		GitName:         cli.GitName,
 		Home:            home,
 		Identities:      filepath.Join(cli.Dir, "identities"),
-		Mlock:           cli.Mlock,
+		Memlock:         cli.Memlock,
 		Recipients:      filepath.Join(store, ".age-recipients"),
 		Socket:          cli.Socket,
 		Store:           store,
@@ -988,7 +988,7 @@ func main() {
 			"GitEmailEnv": pago.GitEmailEnv,
 			"GitEnv":      pago.GitEnv,
 			"GitNameEnv":  pago.GitNameEnv,
-			"MlockEnv":    pago.MlockEnv,
+			"MemlockEnv":  pago.MemlockEnv,
 			"SocketEnv":   pago.SocketEnv,
 			"TimeoutEnv":  pago.TimeoutEnv,
 			"LengthEnv":   pago.LengthEnv,
