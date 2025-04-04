@@ -200,6 +200,58 @@ pago -s '' show foo/bar
 pago agent stop
 ```
 
+### Configuring memory locking
+
+pago-agent uses under 100 MiB of memory on systems where it has been tested.
+It needs to lock memory to avoid being swapped out.
+On Free/Net/OpenBSD, the agent apparently needs the limit on locked memory to exceed its virtual memory, which can be over 1 GiB, even though only around 100 MiB is reserved.
+(You don't lose 1 GiB of memory.)
+Configure your system to allow this or set the environment variable `PAGO_MEMLOCK=0` to disable locking.
+
+Here is how to allow users to lock more memory on typical systems.
+In these examples, we set the limit to 8 GiB.
+
+#### Linux (systemd)
+
+1. Create `/etc/systemd/system.conf.d/` if it doesn't exist.
+2. Edit `/etc/systemd/system.conf.d/limits.conf` to contain the following:
+
+```ini
+[Manager]
+DefaultLimitMEMLOCK=8589934592
+```
+
+3. Restart your user session.
+
+#### Linux (other init systems)
+
+1. Edit `/etc/security/limits.conf` and add this line:
+
+```none
+* hard memlock 8589934592
+```
+
+2. Restart your user session.
+
+#### Free/Net/OpenBSD
+
+1. Edit `/etc/login.conf` and update the default value of `memorylocked`:
+
+```
+default:\
+    [...]
+	:memorylocked=8G:\
+    [...]
+```
+
+2. On FreeBSD only, run the following command as root:
+
+```shell
+cap_mkdb /etc/login.conf
+```
+
+3. Restart your user session.
+
 ### Environment variables
 
 - `PAGO_AGENT`:
