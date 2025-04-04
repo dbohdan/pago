@@ -18,7 +18,7 @@ const (
 	DirPerms         = 0o700
 	FilePerms        = 0o600
 	NameInvalidChars = `[\n]`
-	Version          = "0.10.0"
+	Version          = "0.11.0"
 	WaitForSocket    = 3 * time.Second
 
 	DefaultAgent           = "pago-agent"
