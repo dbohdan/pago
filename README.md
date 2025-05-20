@@ -218,7 +218,7 @@ In these examples, we set the limit to 8 GiB.
 
 ```ini
 [Manager]
-DefaultLimitMEMLOCK=8589934592
+DefaultLimitMEMLOCK=8G
 ```
 
 3. Restart your user session.
