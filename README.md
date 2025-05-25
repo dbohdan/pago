@@ -131,10 +131,10 @@ pago clip -t 20 foo/bar
 # List all entries organized in a tree.
 pago show
 
-# Find entires by a name regular expression.
+# List entires with a name that matches a regular expression.
 pago find fo
 
-# Select and entry interactively using a fuzzy finder
+# Select an entry interactively using a fuzzy finder.
 pago show --pick
 
 # The same as `pago show --pick foo`. Starts the search with `foo`.
@@ -181,7 +181,7 @@ By default, this will commit the deletion to Git.
 The agent keeps your identities in memory to avoid repeated password prompts.
 
 ```shell
-# Start automatically when needed (recommended).
+# Start the agent automatically when needed.
 pago show foo/bar
 
 # Start manually.
