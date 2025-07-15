@@ -238,9 +238,9 @@ DefaultLimitMEMLOCK=8G
 
 ```
 default:\
-    [...]
+	[...]
 	:memorylocked=8G:\
-    [...]
+	[...]
 ```
 
 2. On FreeBSD only, run the following command as root:
