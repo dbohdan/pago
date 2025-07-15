@@ -68,8 +68,7 @@ Once Go is installed on your system, run the following commands:
 ```shell
 # pago and pago-agent are two separate binaries.
 # You should install both unless you have a specific reason not to.
-go install dbohdan.com/pago/cmd/pago@latest
-go install dbohdan.com/pago/cmd/pago-agent@latest
+go install dbohdan.com/pago/cmd/...@latest
 ```
 
 Shell completion files for Bash and fish are available in [`completions/`](completions/).
