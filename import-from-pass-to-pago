@@ -54,4 +54,4 @@ fi
 git add "$recips"
 git add ./*.age ./**/*.age
 
-git commit -m 'Migrate to pago'
+git commit -m 'migrate to pago'
