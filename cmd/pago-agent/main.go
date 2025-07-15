@@ -31,7 +31,8 @@ type RunCmd struct{}
 func (cmd *RunCmd) Run(cli *CLI) error {
 	if cli.Memlock {
 		if err := LockMemory(); err != nil {
-			return err
+			pago.PrintError("%v", err)
+			os.Exit(pago.ExitMemlockError)
 		}
 	}
 

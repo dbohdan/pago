@@ -44,7 +44,17 @@ func StartProcess(executable string, memlock bool, socket, identitiesText string
 	}()
 
 	if err := pago.WaitUntilAvailable(socket, pago.WaitForSocket); err != nil {
-		return fmt.Errorf("timed out waiting for agent socket")
+		if cmd.ProcessState.Exited() {
+			code := cmd.ProcessState.ExitCode()
+			message := ""
+			if code == pago.ExitMemlockError {
+				message = ": failed to lock memory"
+			}
+
+			return fmt.Errorf("agent process exited with code %v%v", code, message)
+		} else {
+			return fmt.Errorf("timed out waiting for agent socket: %v", err)
+		}
 	}
 
 	_, err := Message(socket, "IDENTITIES", identitiesText)

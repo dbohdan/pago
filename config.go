@@ -16,6 +16,7 @@ const (
 	AgeExt           = ".age"
 	AgentSocketPath  = "socket"
 	DirPerms         = 0o700
+	ExitMemlockError = 3
 	FilePerms        = 0o600
 	NameInvalidChars = `[\n]`
 	Version          = "0.11.0"
