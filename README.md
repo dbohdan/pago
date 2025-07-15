@@ -74,9 +74,11 @@ go install dbohdan.com/pago/cmd/...@latest
 Shell completion files for Bash and fish are available in [`completions/`](completions/).
 To install completions for fish, clone the repository and run `install.fish`.
 
+You may need to allow pago-agent to [**lock enough memory**](#memory-locking).
+
 ## Supported platforms
 
-- pago is used by the developer on Linux, NetBSD, and OpenBSD.
+- pago is used by the developer on Linux, NetBSD, and rarely) OpenBSD.
 - pago is automatically tested on FreeBSD and macOS.
 - pago does not build on Windows.
 
@@ -199,15 +201,19 @@ pago -s '' show foo/bar
 pago agent stop
 ```
 
-### Configuring memory locking
+### Memory locking
 
-pago-agent uses under 100 MiB of memory on systems where it has been tested.
-It needs to lock memory to avoid being swapped out.
-On Free/Net/OpenBSD, the agent apparently needs the limit on locked memory to exceed its virtual memory, which can be over 1 GiB, even though only around 100 MiB is reserved.
+pago-agent defaults to [locking the process memory](https://pubs.opengroup.org/onlinepubs/9699919799/functions/mlock.html) to prevent secrets from being written to swap.
+Secrets can be recovered from unencrypted swap that was not erased at system shutdown.
+
+pago-agent uses up to 100 MiB of memory on systems where it has been tested.
+Most operating systems don't allow a process to lock this much memory by default.
+Additionally, on Free/Net/OpenBSD, the agent apparently needs the limit on locked memory to exceed its virtual memory even though only around 100 MiB is reserved.
+This limit can be over 1 GiB.
 (You don't lose 1 GiB of memory.)
 Configure your system to allow this or set the environment variable `PAGO_MEMLOCK=0` to disable locking.
 
-Here is how to allow users to lock more memory on typical systems.
+Here is how to allow users to lock more memory on different operating systems.
 In these examples, we set the limit to 8 GiB.
 
 #### Linux (systemd)
