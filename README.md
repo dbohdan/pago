@@ -263,14 +263,17 @@ cap_mkdb /etc/login.conf
   The agent executable
 - `PAGO_CLIP`:
   The command to use to copy the password to the clipboard.
-  The default differs by platform.
-  On Linux and BSD, it is `xclip -in -selection clip`.
+  The default differs by platform:
+    - Linux and BSD: `xclip -in -selection clip`
+    - macOS: `copy`
 - `PAGO_CONFIRM`:
   Whether pago should ask yes-no questions.
   `0` means pago will assume "yes".
 - `PAGO_DIR`:
   The pago data directory location.
-  Defaults to `~/.local/share/pago` on Linux and BSD.
+  Defaults to:
+    - Linux and BSD: `~/.local/share/pago`
+    - macOS: `~/Library/Application Support/pago`
 - `PAGO_GIT`:
   Whether to use Git
 - `PAGO_LENGTH`:
@@ -281,9 +284,12 @@ cap_mkdb /etc/login.conf
 - `PAGO_PATTERN`:
   The default character pattern (regular expression) for random passwords
 - `PAGO_SOCK`:
-  The agent socket path
+  The agent socket path.
+  Defaults to:
+    - Linux and BSD: `~/.cache/pago/socket`
+    - macOS: `~/Library/Caches/pago/socket`
 - `PAGO_TIMEOUT`:
-  The default clipboard timeout
+  The default timeout to clear the clipboard
 
 ### Interactive editor
 
