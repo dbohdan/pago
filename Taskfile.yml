@@ -21,10 +21,10 @@ tasks:
   build:
     desc: 'Build all components'
     deps:
-      - build_pago
-      - build_pago_agent
+      - build-pago
+      - build-pago-agent
 
-  build_pago:
+  build-pago:
     dir: '{{.pago_cmd_dir}}'
     desc: 'Build the pago executable'
     cmds:
@@ -35,7 +35,7 @@ tasks:
     generates:
       - pago
 
-  build_pago_agent:
+  build-pago-agent:
     dir: '{{.pago_agent_cmd_dir}}'
     desc: 'Build the pago agent executable'
     cmds:
@@ -54,14 +54,14 @@ tasks:
   release:
     desc: 'Prepare a release'
     deps:
-      - build_pago
+      - build-pago
     cmds:
       - VERSION=$({{.pago_cmd_dir}}/pago{{.ext}} version) go run script/release.go
 
   test:
     desc: 'Run tests'
     deps:
-      - build_pago
-      - build_pago_agent
+      - build-pago
+      - build-pago-agent
     cmds:
       - go test ./...
