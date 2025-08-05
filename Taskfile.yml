@@ -11,7 +11,7 @@ env:
 tasks:
   default:
     deps:
-      - test
+      - all
 
   all:
     desc: 'Build and test everything'
