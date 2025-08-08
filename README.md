@@ -177,6 +177,18 @@ pago delete -p foo/bar
 
 By default, this will commit the deletion to Git.
 
+### Rename passwords
+
+```shell
+# Rename an entry.
+pago rename foo/bar foo/baz
+
+# Move an entry to a new directory.
+pago rename foo/baz qux/quux
+```
+
+This creates a Git commit by default.
+
 ### Agent
 
 The agent keeps your identities in memory to avoid repeated password prompts.

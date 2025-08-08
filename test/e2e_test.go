@@ -402,6 +402,74 @@ func TestRekey(t *testing.T) {
 	}
 }
 
+func TestRename(t *testing.T) {
+	output, err := withPagoDir(func(dataDir string) (string, error) {
+		// Add an entry.
+		_, _, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "foo/bar", "--random",
+		)
+		if err != nil {
+			return "", err
+		}
+
+		// Rename the entry.
+		_, stderr, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"rename", "foo/bar", "foo/baz",
+		)
+		if err != nil {
+			return "", err
+		}
+		output1 := stderr
+
+		// Check that the old entry is gone.
+		if _, err := os.Stat(filepath.Join(dataDir, "store", "foo/bar.age")); !os.IsNotExist(err) {
+			return "", fmt.Errorf("old entry foo/bar still exists")
+		}
+
+		// Check that the new entry exists.
+		if _, err := os.Stat(filepath.Join(dataDir, "store", "foo/baz.age")); os.IsNotExist(err) {
+			return "", fmt.Errorf("new entry foo/baz does not exist")
+		}
+
+		// Move to a new directory.
+		_, stderr, err = runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"rename", "foo/baz", "qux/quux",
+		)
+		if err != nil {
+			return "", err
+		}
+		output2 := stderr
+
+		// Check that the old entry is gone.
+		if _, err := os.Stat(filepath.Join(dataDir, "store", "foo/baz.age")); !os.IsNotExist(err) {
+			return "", fmt.Errorf("old entry foo/baz still exists")
+		}
+
+		// Check that the new entry exists.
+		if _, err := os.Stat(filepath.Join(dataDir, "store", "qux/quux.age")); os.IsNotExist(err) {
+			return "", fmt.Errorf("new entry qux/quux does not exist")
+		}
+
+		// Check that the old directory is gone.
+		if _, err := os.Stat(filepath.Join(dataDir, "store", "foo")); !os.IsNotExist(err) {
+			return "", fmt.Errorf("old directory foo should have been removed")
+		}
+
+		return output1 + output2, nil
+	})
+	if err != nil {
+		t.Errorf("Command `rename` failed: %v", err)
+	}
+
+	re := `^Renamed "foo/bar" to "foo/baz"\nRenamed "foo/baz" to "qux/quux"`
+	if matched, _ := regexp.MatchString(re, strings.TrimSpace(output)); !matched {
+		t.Errorf("Expected %q in output, got %q", re, strings.TrimSpace(output))
+	}
+}
+
 func TestRewrap(t *testing.T) {
 	_, err := withPagoDir(func(dataDir string) (string, error) {
 		c, err := expect.NewConsole()
@@ -610,7 +678,7 @@ func TestAgentStartPingStop(t *testing.T) {
 		}
 
 		// Verify the agent is stopped by checking its status again.
-		stdout, stderr, err = runCommandEnv(
+		_, _, err = runCommandEnv(
 			[]string{"PAGO_DIR=" + dataDir, "PAGO_SOCK=" + socketPath},
 			"agent", "status",
 		)

@@ -10,9 +10,10 @@ set -l delete_commands d del delete
 set -l edit_commands e edit
 set -l generate_commands g gen generate
 set -l pick_commands p pick
+set -l rename_commands mv r rename
 set -l show_commands s show
 set -l version_commands v ver version
-set -g __pago_cmd_groups $add_commands $clip_commands $delete_commands $edit_commands $generate_commands $pick_commands $show_commands $version_commands
+set -g __pago_cmd_groups $add_commands $clip_commands $delete_commands $edit_commands $generate_commands $pick_commands $rename_commands $show_commands $version_commands
 
 function __pago_no_subcommand
     not __fish_seen_subcommand_from $__pago_cmd_groups
@@ -83,6 +84,12 @@ end
 # `pick` command options.
 complete -c pago -n __pago_no_subcommand -a pick -d "Show password for a picked entry"
 for cmd in $pick_commands
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -a "(pago find)"
+end
+
+# `rename` command options.
+complete -c pago -n __pago_no_subcommand -a rename -d "Rename or move a password entry"
+for cmd in $rename_commands
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -a "(pago find)"
 end
 

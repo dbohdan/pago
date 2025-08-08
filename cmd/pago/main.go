@@ -61,6 +61,7 @@ type CLI struct {
 	Init     InitCmd     `cmd:"" help:"Create a new passwore store"`
 	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password for an entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
 	Rekey    RekeyCmd    `cmd:"" help:"Reencrypt all password entries with the recipients file"`
+	Rename   RenameCmd   `cmd:"" aliases:"mv,r" help:"Rename or move a password entry"`
 	Rewrap   RewrapCmd   `cmd:"" help:"Change the password for the identities file"`
 	Show     ShowCmd     `cmd:"" aliases:"s" help:"Show password for entry or list entries"`
 	Version  VersionCmd  `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
@@ -385,6 +386,18 @@ type DeleteCmd struct {
 	Pick  bool `short:"p" help:"Pick entry using fuzzy finder"`
 }
 
+func removeEmptyParentDirs(top, dir string) {
+	for dir != top {
+		err := os.Remove(dir)
+		if err != nil {
+			// The directory is not empty or there was another error.
+			break
+		}
+
+		dir = filepath.Dir(dir)
+	}
+}
+
 func (cmd *DeleteCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
@@ -421,16 +434,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to delete entry: %v", err)
 	}
 
-	// Try to remove empty parent directories.
-	dir := filepath.Dir(file)
-	for dir != config.Store {
-		err := os.Remove(dir)
-		if err != nil {
-			// The directory is not empty or there was another error.
-			break
-		}
-		dir = filepath.Dir(dir)
-	}
+	removeEmptyParentDirs(config.Store, filepath.Dir(file))
 
 	if config.Git {
 		if err := git.Commit(
@@ -759,6 +763,60 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 		}
 	}
 
+	return nil
+}
+
+type RenameCmd struct {
+	OldName string `arg:"" help:"Old name of the password entry"`
+	NewName string `arg:"" help:"New name of the password entry"`
+}
+
+func (cmd *RenameCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	if !entryExists(config.Store, cmd.OldName) {
+		return fmt.Errorf("entry doesn't exist: %v", cmd.OldName)
+	}
+
+	if entryExists(config.Store, cmd.NewName) {
+		return fmt.Errorf("entry already exists: %v", cmd.NewName)
+	}
+
+	oldFile, err := pago.EntryFile(config.Store, cmd.OldName)
+	if err != nil {
+		return err
+	}
+
+	newFile, err := pago.EntryFile(config.Store, cmd.NewName)
+	if err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Dir(newFile), pago.DirPerms); err != nil {
+		return fmt.Errorf("failed to create directory for new entry: %v", err)
+	}
+
+	if err := os.Rename(oldFile, newFile); err != nil {
+		return fmt.Errorf("failed to rename entry: %v", err)
+	}
+
+	removeEmptyParentDirs(config.Store, filepath.Dir(oldFile))
+
+	if config.Git {
+		if err := git.Commit(
+			config.Store,
+			config.GitName,
+			config.GitEmail,
+			fmt.Sprintf("rename %q to %q", cmd.OldName, cmd.NewName),
+			[]string{oldFile, newFile},
+		); err != nil {
+			return err
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "Renamed %q to %q\n", cmd.OldName, cmd.NewName)
 	return nil
 }
 

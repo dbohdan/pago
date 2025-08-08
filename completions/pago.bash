@@ -4,7 +4,7 @@
 # See the file `LICENSE`.
 
 # Command aliases and options.
-_pago_main_commands="add clip delete edit find generate init pick rekey rewrap show version"
+_pago_main_commands="add clip delete edit find generate init pick rekey rename rewrap show version"
 _pago_global_options="-d --dir --no-confirm --no-git --git-email --git-name -s --socket -v --verbose"
 
 # Subcommand options.
@@ -51,7 +51,7 @@ _pago_complete() {
     else
         # Complete subcommands or global options.
         case "$subcommand" in
-        a | add | c | clip | d | del | delete | rm | e | edit | g | gen | generate | p | pick | s | show)
+        a | add | c | clip | d | del | delete | rm | e | edit | g | gen | generate | p | pick | mv | r | rename | s | show)
             _pago_complete_subcommand_options "$subcommand"
             ;;
         *)
