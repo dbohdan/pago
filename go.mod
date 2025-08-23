@@ -17,6 +17,7 @@ require (
 	github.com/tidwall/redcon v1.6.2
 	github.com/valkey-io/valkey-go v1.0.51
 	github.com/xlab/treeprint v1.2.0
+	golang.org/x/sys v0.28.0
 	golang.org/x/term v0.27.0
 )
 
@@ -61,7 +62,6 @@ require (
 	golang.org/x/mod v0.18.0 // indirect
 	golang.org/x/net v0.33.0 // indirect
 	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.22.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect

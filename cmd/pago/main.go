@@ -1016,6 +1016,11 @@ func main() {
 
 	var cli CLI
 
+	defaultSocket, err := pago.DefaultSocket()
+	if err != nil {
+		pago.ExitWithError("%v", err)
+	}
+
 	parser := kong.Must(&cli,
 		kong.Name("pago"),
 		kong.Description("A command-line password manager."),
@@ -1035,7 +1040,7 @@ func main() {
 			"DefaultDataDir": pago.DefaultDataDir,
 			"DefaultLength":  pago.DefaultPasswordLength,
 			"DefaultPattern": pago.DefaultPasswordPattern,
-			"DefaultSocket":  pago.DefaultSocket,
+			"DefaultSocket":  defaultSocket,
 			"GitEmail":       GitEmail,
 			"GitName":        GitName,
 

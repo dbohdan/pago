@@ -6,6 +6,8 @@
 package pago
 
 import (
+	"os"
+	"os/user"
 	"path/filepath"
 	"time"
 
@@ -43,7 +45,27 @@ const (
 )
 
 var (
-	DefaultCacheDir = filepath.Join(xdg.CacheHome, "pago")
-	DefaultDataDir  = filepath.Join(xdg.DataHome, "pago")
-	DefaultSocket   = filepath.Join(DefaultCacheDir, AgentSocketPath)
+	DefaultDataDir = filepath.Join(xdg.DataHome, "pago")
 )
+
+// Workaround for xdg.RuntimeDir being "/run/user/{{Uid}}" on *BSD.
+func DefaultSocket() (string, error) {
+	currentUser, err := user.Current()
+	if err != nil {
+		return "", err
+	}
+
+	runtimeDir := xdg.RuntimeDir
+	subdir := "pago"
+
+	if _, err := os.Stat(runtimeDir); err != nil {
+		runtimeDir = "/var/run/user/" + currentUser.Uid
+	}
+
+	if _, err := os.Stat(runtimeDir); err != nil {
+		runtimeDir = os.TempDir()
+		subdir = "pago-" + currentUser.Username
+	}
+
+	return filepath.Join(runtimeDir, subdir, "socket"), nil
+}

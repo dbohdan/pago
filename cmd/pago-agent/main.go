@@ -53,6 +53,12 @@ func (cmd *VersionCmd) Run(cli *CLI) error {
 
 func main() {
 	var cli CLI
+
+	defaultSocket, err := pago.DefaultSocket()
+	if err != nil {
+		pago.ExitWithError("%v", err)
+	}
+
 	parser := kong.Parse(&cli,
 		kong.Name("pago-agent"),
 		kong.Description("Password store agent for pago."),
@@ -67,7 +73,7 @@ func main() {
 			os.Exit(code)
 		}),
 		kong.Vars{
-			"DefaultSocket": pago.DefaultSocket,
+			"DefaultSocket": defaultSocket,
 
 			"MemlockEnv": pago.MemlockEnv,
 			"SocketEnv":  pago.SocketEnv,
