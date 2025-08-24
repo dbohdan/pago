@@ -21,7 +21,7 @@ const (
 	ExitMemlockError = 3
 	FilePerms        = 0o600
 	NameInvalidChars = `[\n]`
-	Version          = "0.12.0"
+	Version          = "0.13.0"
 	WaitForSocket    = 3 * time.Second
 
 	DefaultAgent           = "pago-agent"
