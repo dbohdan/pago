@@ -297,10 +297,15 @@ cap_mkdb /etc/login.conf
   The default character pattern (regular expression) for random passwords
 - `PAGO_SOCK`:
   The agent socket path.
-  Defaults to a path inside the user runtime directory.
-  This is `${XDG_RUNTIME_DIR}/pago/socket` or `/run/user/<UID>/pago/socket` on Linux.
-  If the primary runtime directory is not available, pago tries `/var/run/user/<UID>/` as a fallback.
-  If that also fails, it uses a user-specific subdirectory in the temporary directory, for example, `/tmp/pago-${USER}/socket`.
+  The default path is determined by trying candidate paths until the parent directory of the pago directory exists.
+    - Linux and BSD:
+      - `${XDG_RUNTIME_DIR}/pago/socket`
+      - `/var/run/xdg/$USER/pago/socket` on FreeBSD only
+      - `/run/user/$UID/pago/socket`
+      - `/var/run/user/$UID/pago/socket`
+      - `${TMPDIR:-/tmp}/pago-${USER}/socket`
+    - macOS:
+      - `${TMPDIR:-/tmp}/pago-${USER}/socket`
 - `PAGO_TIMEOUT`:
   The default timeout to clear the clipboard
 

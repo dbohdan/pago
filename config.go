@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"time"
 
 	"github.com/adrg/xdg"
@@ -48,15 +49,27 @@ var (
 	DefaultDataDir = filepath.Join(xdg.DataHome, "pago")
 )
 
-// Workaround for xdg.RuntimeDir being "/run/user/{{Uid}}" on *BSD.
 func DefaultSocket() (string, error) {
 	currentUser, err := user.Current()
 	if err != nil {
 		return "", err
 	}
 
-	runtimeDir := xdg.RuntimeDir
+	// We don't use xdg.RuntimeDir because of its value on BSD and macOS.
+	// "/run/user/$UID/" is unlikely to be configured on a BSD.
+	// On macOS, the user's temporary directory is closer to the semantics required by the spec than "~/Library/Application Support/".
+	// (But still wrong?
+	// The spec says the directory's existence must be tied to the user session.)
+	runtimeDir := os.Getenv("XDG_RUNTIME_DIR")
 	subdir := "pago"
+
+	if _, err := os.Stat(runtimeDir); err != nil && runtime.GOOS == "freebsd" {
+		runtimeDir = "/var/run/xdg/" + currentUser.Username
+	}
+
+	if _, err := os.Stat(runtimeDir); err != nil {
+		runtimeDir = "/run/user/" + currentUser.Uid
+	}
 
 	if _, err := os.Stat(runtimeDir); err != nil {
 		runtimeDir = "/var/run/user/" + currentUser.Uid
