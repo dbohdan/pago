@@ -1028,7 +1028,7 @@ func main() {
 			Compact: true,
 		}),
 		kong.Exit(func(code int) {
-			if code == 1 {
+			if code != 0 {
 				code = 2
 			}
 
