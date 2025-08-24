@@ -274,7 +274,7 @@ func copyToClipboard(command string, text string) error {
 	cmd.Stdin = strings.NewReader(text)
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to rub clipboard command: %v", err)
+		return fmt.Errorf("failed to run clipboard command: %v", err)
 	}
 
 	return nil

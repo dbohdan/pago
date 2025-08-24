@@ -533,7 +533,7 @@ func TestRewrap(t *testing.T) {
 
 		_, err = c.ExpectString("Enter password")
 		if err != nil {
-			return "", fmt.Errorf("failed to get passworr prompt for `show`: %w", err)
+			return "", fmt.Errorf("failed to get password prompt for `show`: %w", err)
 		}
 		_, _ = c.SendLine(newPassword)
 
