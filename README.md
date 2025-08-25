@@ -14,13 +14,21 @@ It provides the following in a single binary:
 
 pago encrypts passwords with one or more public keys using [age](https://github.com/FiloSottile/age) (pronounced with a hard "g").
 The public keys are called "recipients".
+Recipients can be:
+- age recipients
+- SSH public keys
+
 A private key matching one of the recipient public keys can decrypt the password.
 The private keys are called "identities".
+Identities can be:
+- age identities
+- SSH private keys
+
 The file with the identities is encrypted with a password, also using age.
 
 pago implements an agent like [ssh-agent](https://en.wikipedia.org/wiki/Ssh-agent) or [gpg-agent](https://www.gnupg.org/documentation/manuals/gnupg/Invoking-GPG_002dAGENT.html).
 The agent caches the identities.
-This mean you don't have to enter the master password again during a session.
+This means you don't have to enter the master password again during a session.
 pago starts the agent the first time you enter the master password.
 You can also start and stop the agent manually.
 
@@ -78,7 +86,7 @@ You may need to allow pago-agent to [**lock enough memory**](#memory-locking).
 
 ## Supported platforms
 
-- pago is used by the developer on Linux, NetBSD, and rarely) OpenBSD.
+- pago is used by the developer on Linux, NetBSD, and (rarely) OpenBSD.
 - pago is automatically tested on FreeBSD and macOS.
 - pago does not build on Windows.
 
@@ -95,6 +103,45 @@ pago init
 ```
 
 This will create a new password store, prompt you for a master password, and commit the recipients file to Git.
+
+### Using SSH keys
+
+To use pago with an SSH key as an identity, follow these steps.
+Back up your `identities` file and install age for the command line before proceeding.
+
+Note that the SSH key must not be encrypted, i.e., must not have a password.
+If necessary, remove the password with `ssh-keygen`.
+pago encrypts `identities` with a password using age encryption.
+
+You may wish to work with secrets in memory or on an encrypted disk.
+On Linux with glibc, you normally have `/dev/shm/` available as temporary in-memory storage.
+
+1. Add your SSH _public_ key to `.age-recipients`.
+You can have multiple recipients.
+
+```shell
+# Repeat for every SSH key.
+cat ~/.ssh/id_ed25519.pub >> ~/.local/share/pago/store/.age-recipients
+
+pago rekey
+```
+
+2. Add the corresponding SSH _private_ key to the encrypted identities file.
+This is not automated and requires decrypting the file manually using the `age` command.
+We are going to use a directory in `/dev/shm/` in this example.
+
+```shell
+# Edit the identities file.
+mkdir -p "/dev/shm/pago-$USER-temp/"
+age -d -o "/dev/shm/pago-$USER-temp/identities" ~/.local/share/pago/identities
+# Ensure a line break.
+echo >> "/dev/shm/pago-$USER-temp/identities"
+cat ~/.ssh/id_ed25519 >> "/dev/shm/pago-$USER-temp/identities"
+age -a -e -p -o ~/.local/share/pago/identities "/dev/shm/pago-$USER-temp/identities"
+
+# Restart the agent to load the new identities.
+pago agent restart
+```
 
 ### Add passwords
 

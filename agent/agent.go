@@ -113,7 +113,7 @@ func Run(socket string) error {
 
 				identitiesText := string(cmd.Args[1])
 
-				newIdentities, err := age.ParseIdentities(strings.NewReader(identitiesText))
+				newIdentities, err := crypto.ParseIdentities(identitiesText)
 				if err != nil {
 					conn.WriteError(`ERR failed to parse identities`)
 					return

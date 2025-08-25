@@ -16,6 +16,8 @@ import (
 	"strings"
 	"testing"
 
+	"dbohdan.com/pago"
+	"dbohdan.com/pago/crypto"
 	"dbohdan.com/pago/tree"
 
 	"filippo.io/age"
@@ -88,7 +90,7 @@ func withPagoDir(test func(dataDir string) (string, error)) (string, error) {
 }
 
 func createFakeEntry(dataDir, name string) error {
-	file, err := os.OpenFile(filepath.Join(dataDir, "store", name+".age"), os.O_CREATE|os.O_RDONLY, 0600)
+	file, err := os.OpenFile(filepath.Join(dataDir, "store", name+".age"), os.O_CREATE|os.O_RDONLY, pago.FilePerms)
 	if err != nil {
 		return err
 	}
@@ -320,6 +322,106 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
+func getSSHIdentity(t *testing.T) age.Identity {
+	t.Helper()
+
+	privateKey, err := os.ReadFile("id_ed25519")
+	if err != nil {
+		t.Fatalf("Failed to read SSH private key: %v", err)
+	}
+
+	ids, err := crypto.ParseIdentities(string(privateKey))
+	if err != nil {
+		t.Fatalf("Failed to parse SSH identity: %v", err)
+	}
+
+	return ids[0]
+}
+
+func TestRekeyWithSSH(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		for _, name := range []string{"foo", "bar", "baz/qux"} {
+			stdout, stderr, err := runCommandEnv(
+				[]string{"PAGO_DIR=" + dataDir},
+				"add", name, "--length", "32", "--pattern", "[a]", "--random",
+			)
+			if err != nil {
+				return stdout + "\n" + stderr, err
+			}
+		}
+
+		// Write the SSH public key to .age-recipients.
+		publicKey, err := os.ReadFile("id_ed25519.pub")
+		if err != nil {
+			return "", fmt.Errorf("failed to read test SSH public key: %w", err)
+		}
+
+		recipientsPath := filepath.Join(dataDir, "store/.age-recipients")
+		err = os.WriteFile(recipientsPath, publicKey, pago.FilePerms)
+		if err != nil {
+			return "", fmt.Errorf("failed to write recipients file: %w", err)
+		}
+
+		c, err := expect.NewConsole()
+		if err != nil {
+			return "", fmt.Errorf("failed to create console: %w", err)
+		}
+		defer c.Close()
+
+		cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "rekey")
+		cmd.Stdin = c.Tty()
+		cmd.Stdout = c.Tty()
+		cmd.Stderr = c.Tty()
+
+		err = cmd.Start()
+		if err != nil {
+			return "", fmt.Errorf("failed to start rekey command: %w", err)
+		}
+
+		_, err = c.ExpectString("Enter password")
+		if err != nil {
+			return "", fmt.Errorf("failed to get password prompt: %w", err)
+		}
+		_, _ = c.SendLine(password)
+
+		err = cmd.Wait()
+		if err != nil {
+			return "", fmt.Errorf("rekey failed: %w", err)
+		}
+
+		// Verify we can decrypt the entries using the SSH key.
+		sshIdentity := getSSHIdentity(t)
+
+		for _, name := range []string{"foo", "bar", "baz/qux"} {
+			encryptedPath := filepath.Join(dataDir, "store", name+".age")
+			encryptedBytes, err := os.ReadFile(encryptedPath)
+			if err != nil {
+				return "", fmt.Errorf("failed to read encrypted file %q: %w", name, err)
+			}
+
+			r, err := age.Decrypt(armor.NewReader(bytes.NewReader(encryptedBytes)), sshIdentity)
+			if err != nil {
+				return "", fmt.Errorf("failed to decrypt %q: %w", name, err)
+			}
+
+			decrypted, err := io.ReadAll(r)
+			if err != nil {
+				return "", fmt.Errorf("failed to read decrypted content of %q: %w", name, err)
+			}
+
+			if !regexp.MustCompile(`^a{32}$`).Match(decrypted) {
+				return "", fmt.Errorf("unexpected decrypted content for %q: %q", name, decrypted)
+			}
+		}
+
+		return "", nil
+	})
+
+	if err != nil {
+		t.Errorf("SSH rekey test failed: %v", err)
+	}
+}
+
 func TestRekey(t *testing.T) {
 	_, err := withPagoDir(func(dataDir string) (string, error) {
 		for _, name := range []string{"foo", "bar", "baz/qux"} {
@@ -339,7 +441,7 @@ func TestRekey(t *testing.T) {
 
 		// Write the public key to .age-recipients.
 		recipientsPath := filepath.Join(dataDir, "store/.age-recipients")
-		err = os.WriteFile(recipientsPath, []byte(identity.Recipient().String()+"\n"), 0600)
+		err = os.WriteFile(recipientsPath, []byte(identity.Recipient().String()+"\n"), pago.FilePerms)
 		if err != nil {
 			return "", fmt.Errorf("failed to write recipients file: %w", err)
 		}

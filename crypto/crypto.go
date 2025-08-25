@@ -19,6 +19,7 @@ import (
 	"dbohdan.com/pago/input"
 
 	"filippo.io/age"
+	"filippo.io/age/agessh"
 	"filippo.io/age/armor"
 )
 
@@ -32,9 +33,17 @@ func ParseRecipients(contents string) ([]age.Recipient, error) {
 			continue
 		}
 
-		recipient, err := age.ParseX25519Recipient(line)
+		var recipient age.Recipient
+		var err error
+
+		// First, try to parse as an X25519 recipient.
+		recipient, err = age.ParseX25519Recipient(line)
 		if err != nil {
-			return nil, fmt.Errorf("invalid recipient: %v", err)
+			// Then try parsing as an SSH public key.
+			recipient, err = agessh.ParseRecipient(line)
+			if err != nil {
+				return nil, fmt.Errorf("invalid recipient: %v", err)
+			}
 		}
 
 		recips = append(recips, recipient)
@@ -112,6 +121,64 @@ func WrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
 	return age.Decrypt(r, identities...)
 }
 
+func ParseIdentities(identityData string) ([]age.Identity, error) {
+	var allIdentities []age.Identity
+	var pemBlock []string
+	inPEMBlock := false
+
+	lines := strings.Split(identityData, "\n")
+
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+
+		if strings.HasPrefix(trimmedLine, "-----BEGIN") {
+			if inPEMBlock {
+				return nil, errors.New("invalid PEM block: nested BEGIN")
+			}
+
+			inPEMBlock = true
+			pemBlock = []string{line}
+			continue
+		}
+
+		if inPEMBlock {
+			pemBlock = append(pemBlock, line)
+			if strings.HasPrefix(trimmedLine, "-----END") {
+				inPEMBlock = false
+				pemBytes := []byte(strings.Join(pemBlock, "\n"))
+
+				id, err := agessh.ParseIdentity(pemBytes)
+				if err != nil {
+					return nil, fmt.Errorf("invalid SSH identity in PEM block: %v", err)
+				}
+				allIdentities = append(allIdentities, id)
+				pemBlock = nil
+			}
+
+			continue
+		}
+
+		if trimmedLine == "" || strings.HasPrefix(trimmedLine, "#") {
+			continue
+		}
+
+		// If it's not a PEM block, it must be a native age identity.
+		id, err := age.ParseX25519Identity(trimmedLine)
+		if err != nil {
+			return nil, fmt.Errorf("invalid identity: %v", err)
+		}
+
+		allIdentities = append(allIdentities, id)
+		fmt.Fprintf(os.Stderr, "allIdentities: %q\n", allIdentities)
+	}
+
+	if inPEMBlock {
+		return nil, errors.New("invalid PEM block: missing END")
+	}
+
+	return allIdentities, nil
+}
+
 func DecryptIdentities(identitiesPath string) (string, error) {
 	encryptedData, err := os.ReadFile(identitiesPath)
 	if err != nil {
@@ -158,7 +225,7 @@ func DecryptEntry(identities, passwordStore, name string) (string, error) {
 		return "", err
 	}
 
-	ids, err := age.ParseIdentities(strings.NewReader(identitiesText))
+	ids, err := ParseIdentities(identitiesText)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse identities: %v", err)
 	}

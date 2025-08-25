@@ -22,12 +22,12 @@ const (
 	ExitMemlockError = 3
 	FilePerms        = 0o600
 	NameInvalidChars = `[\n]`
-	Version          = "0.14.0"
+	Version          = "0.15.0"
 	WaitForSocket    = 3 * time.Second
 
 	DefaultAgent           = "pago-agent"
-	DefaultGitEmail        = "pago password manager"
-	DefaultGitName         = "pago@localhost"
+	DefaultGitEmail        = "pago@localhost"
+	DefaultGitName         = "pago password manager"
 	DefaultPasswordLength  = "20"
 	DefaultPasswordPattern = "[A-Za-z0-9]"
 

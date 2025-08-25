@@ -704,7 +704,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 		return err
 	}
 
-	ids, err := age.ParseIdentities(strings.NewReader(identitiesText))
+	ids, err := crypto.ParseIdentities(identitiesText)
 	if err != nil {
 		return fmt.Errorf("failed to parse identities: %v", err)
 	}
