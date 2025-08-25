@@ -35,7 +35,7 @@ You can also start and stop the agent manually.
 The pago password store format is compatible with [passage](https://github.com/FiloSottile/passage).
 It has the following differences:
 
-- The pago directory is located at `${XDG_DATA_HOME}/pago/`, while passage uses `~/.passage/`
+- The pago directory is located at `$XDG_DATA_HOME/pago/`, while passage uses `~/.passage/`
 - passage supports an encrypted or an unencrypted identities file; pago only supports encrypted
 
 ## Threat model
@@ -70,7 +70,7 @@ It has been ported from POSIX shell to Tcl to Go and from [GPG](https://gnupg.or
 
 ## Installation
 
-You will need Go 1.22 or later to install pago.
+You will need Go 1.24 or later to install pago.
 Once Go is installed on your system, run the following commands:
 
 ```shell
@@ -123,6 +123,7 @@ You can have multiple recipients.
 # Repeat for every SSH key.
 cat ~/.ssh/id_ed25519.pub >> ~/.local/share/pago/store/.age-recipients
 
+# Re-encrypt the password entries to the new recipients.
 pago rekey
 ```
 
@@ -346,7 +347,7 @@ cap_mkdb /etc/login.conf
   The agent socket path.
   The default path is determined by trying candidate paths until the parent directory of the pago directory exists.
     - Linux and BSD:
-      - `${XDG_RUNTIME_DIR}/pago/socket`
+      - `$XDG_RUNTIME_DIR/pago/socket`
       - `/var/run/xdg/$USER/pago/socket` on FreeBSD only
       - `/run/user/$UID/pago/socket`
       - `/var/run/user/$UID/pago/socket`
