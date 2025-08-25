@@ -58,7 +58,7 @@ type CLI struct {
 	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
 	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
-	Init     InitCmd     `cmd:"" help:"Create a new passwore store"`
+	Init     InitCmd     `cmd:"" help:"Create a new password store"`
 	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password for an entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
 	Rekey    RekeyCmd    `cmd:"" help:"Reencrypt all password entries with the recipients file"`
 	Rename   RenameCmd   `cmd:"" aliases:"mv,r" help:"Rename or move a password entry"`
