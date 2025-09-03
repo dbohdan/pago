@@ -269,7 +269,7 @@ Secrets can be recovered from unencrypted swap that was not erased at system shu
 pago-agent uses up to 100 MiB of memory on systems where it has been tested.
 Most operating systems don't allow a process to lock this much memory by default.
 Additionally, on Free/Net/OpenBSD, the agent apparently needs the limit on locked memory to exceed its virtual memory even though only around 100 MiB is reserved.
-This limit can be over 1 GiB.
+The amount of virtual memory can be over 1 GiB.
 (You don't lose 1 GiB of memory.)
 Configure your system to allow this or set the environment variable `PAGO_MEMLOCK=0` to disable locking.
 
