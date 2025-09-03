@@ -55,27 +55,35 @@ func DefaultSocket() (string, error) {
 		return "", err
 	}
 
-	// We don't use xdg.RuntimeDir because of its value on BSD and macOS.
-	// "/run/user/$UID/" is unlikely to be configured on a BSD.
-	// On macOS, the user's temporary directory is closer to the semantics required by the spec than "~/Library/Application Support/".
-	// (But still wrong?
-	// The spec says the directory's existence must be tied to the user session.)
-	runtimeDir := os.Getenv("XDG_RUNTIME_DIR")
+	// Build candidate directories in priority order.
+	candidates := []string{}
 	subdir := "pago"
 
-	if _, err := os.Stat(runtimeDir); err != nil && runtime.GOOS == "freebsd" {
-		runtimeDir = "/var/run/xdg/" + currentUser.Username
+	if envDir := os.Getenv("XDG_RUNTIME_DIR"); envDir != "" {
+		candidates = append(candidates, envDir)
 	}
 
-	if _, err := os.Stat(runtimeDir); err != nil {
-		runtimeDir = "/run/user/" + currentUser.Uid
+	if runtime.GOOS == "freebsd" {
+		candidates = append(candidates, filepath.Join("/var/run/xdg", currentUser.Username))
 	}
 
-	if _, err := os.Stat(runtimeDir); err != nil {
-		runtimeDir = "/var/run/user/" + currentUser.Uid
+	candidates = append(
+		candidates,
+		filepath.Join("/run/user", currentUser.Uid),
+		filepath.Join("/var/run/user", currentUser.Uid),
+	)
+
+	// Find the first candidate that exists.
+	var runtimeDir string
+	for _, candidateDir := range candidates {
+		if _, err := os.Stat(candidateDir); err == nil {
+			runtimeDir = candidateDir
+			break
+		}
 	}
 
-	if _, err := os.Stat(runtimeDir); err != nil {
+	// If no candidate exists, fall back to the temporary directory.
+	if runtimeDir == "" {
 		runtimeDir = os.TempDir()
 		subdir = "pago-" + currentUser.Username
 	}
