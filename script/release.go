@@ -103,6 +103,11 @@ func buildAll() error {
 		}
 	}
 
+	fmt.Println()
+	if err := signFile(filepath.Join(releaseDir, checksumFilename)); err != nil {
+		return fmt.Errorf("signing failed: %v\n", err)
+	}
+
 	return nil
 }
 
@@ -237,4 +242,14 @@ func appendChecksum(checksumFilePath, filePath string) error {
 	}
 
 	return nil
+}
+
+func signFile(filePath string) error {
+	fmt.Printf("Signing %s\n", filePath)
+
+	cmd := exec.Command("minisign", "-S", "-m", filePath)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
