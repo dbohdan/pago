@@ -22,7 +22,7 @@ const (
 	ExitMemlockError = 3
 	FilePerms        = 0o600
 	NameInvalidChars = `[\n]`
-	Version          = "0.15.1"
+	Version          = "0.16.0"
 	WaitForSocket    = 3 * time.Second
 
 	DefaultAgent           = "pago-agent"
@@ -35,6 +35,7 @@ const (
 	ClipEnv     = "PAGO_CLIP"
 	ConfirmEnv  = "PAGO_CONFIRM"
 	DataDirEnv  = "PAGO_DIR"
+	ExpireEnv   = "PAGO_EXPIRE"
 	GitEmailEnv = "GIT_AUTHOR_EMAIL"
 	GitEnv      = "PAGO_GIT"
 	GitNameEnv  = "GIT_AUTHOR_NAME"

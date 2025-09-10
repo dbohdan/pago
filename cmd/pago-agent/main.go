@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"dbohdan.com/pago"
 	"dbohdan.com/pago/agent"
@@ -26,7 +27,9 @@ type CLI struct {
 	Version VersionCmd `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
 }
 
-type RunCmd struct{}
+type RunCmd struct {
+	Expire time.Duration `short:"e" help:"Agent expiration time (Go duration, 0 to disable)"`
+}
 
 func (cmd *RunCmd) Run(cli *CLI) error {
 	if cli.Memlock {
@@ -41,7 +44,7 @@ func (cmd *RunCmd) Run(cli *CLI) error {
 		return fmt.Errorf("failed to create socket directory: %v", err)
 	}
 
-	return agent.Run(cli.Socket)
+	return agent.Run(cli.Socket, cmd.Expire)
 }
 
 type VersionCmd struct{}

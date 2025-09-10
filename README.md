@@ -240,6 +240,7 @@ This creates a Git commit by default.
 ### Agent
 
 The agent keeps your identities in memory to avoid repeated password prompts.
+By default, the agent runs until manually stopped, but you can configure it to automatically expire after a period of inactivity.
 
 ```shell
 # Start the agent automatically when needed.
@@ -247,6 +248,9 @@ pago show foo/bar
 
 # Start manually.
 pago agent start
+
+# Start with automatic expiration after 1 hour of inactivity.
+pago agent start --expire 1h
 
 # By default, the agent locks its memory to prevent secrets from being written to swap.
 # You may need to run the command `ulimit -l 100000` to let it lock enough memory.
@@ -334,6 +338,9 @@ cap_mkdb /etc/login.conf
   Defaults to:
     - Linux and BSD: `~/.local/share/pago`
     - macOS: `~/Library/Application Support/pago`
+- `PAGO_EXPIRE`:
+  Agent expiration time after which it will automatically shut down ([Go duration string](https://pkg.go.dev/time#ParseDuration); for example, `1h30m`).
+  Default: no expiration.
 - `PAGO_GIT`:
   Whether to use Git
 - `PAGO_LENGTH`:

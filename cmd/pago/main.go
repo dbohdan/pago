@@ -39,15 +39,16 @@ import (
 
 type CLI struct {
 	// Global options.
-	AgentExecutable string `short:"a" name:"agent" env:"${AgentEnv}" default:"${DefaultAgent}" help:"Agent executable (${env})"`
-	Confirm         bool   `env:"${ConfirmEnv}" default:"true" negatable:"" help:"Enter passwords twice (${env})"`
-	Dir             string `short:"d" env:"${DataDirEnv}" default:"${DefaultDataDir}" help:"Store location (${env})"`
-	Git             bool   `env:"${GitEnv}" default:"true" negatable:"" help:"Commit to Git (${env})"`
-	GitEmail        string `env:"${GitEmailEnv}" default:"${GitEmail}" help:"Email for Git commits (${env})"`
-	GitName         string `env:"${GitNameEnv}" default:"${GitName}" help:"Name for Git commits (${env})"`
-	Memlock         bool   `env:"${MemlockEnv}" default:"true" negatable:"" help:"Lock agent memory with mlockall(2) (${env})"`
-	Socket          string `short:"s" env:"${SocketEnv}" default:"${DefaultSocket}" help:"Agent socket path (blank to disable, ${env})"`
-	Verbose         bool   `short:"v" hidden:"" help:"Print debugging information"`
+	AgentExecutable string        `short:"a" name:"agent" env:"${AgentEnv}" default:"${DefaultAgent}" help:"Agent executable (${env})"`
+	Confirm         bool          `env:"${ConfirmEnv}" default:"true" negatable:"" help:"Enter passwords twice (${env})"`
+	Dir             string        `short:"d" env:"${DataDirEnv}" default:"${DefaultDataDir}" help:"Store location (${env})"`
+	Expire          time.Duration `short:"e" env:"${ExpireEnv}" help:"Agent expiration time (Go duration, 0 to disable, ${env})"`
+	Git             bool          `env:"${GitEnv}" default:"true" negatable:"" help:"Commit to Git (${env})"`
+	GitEmail        string        `env:"${GitEmailEnv}" default:"${GitEmail}" help:"Email for Git commits (${env})"`
+	GitName         string        `env:"${GitNameEnv}" default:"${GitName}" help:"Name for Git commits (${env})"`
+	Memlock         bool          `env:"${MemlockEnv}" default:"true" negatable:"" help:"Lock agent memory with mlockall(2) (${env})"`
+	Socket          string        `short:"s" env:"${SocketEnv}" default:"${DefaultSocket}" help:"Agent socket path (blank to disable, ${env})"`
+	Verbose         bool          `short:"v" hidden:"" help:"Print debugging information"`
 
 	// Commands.
 	Add      AddCmd      `cmd:"" aliases:"a" help:"Create new password entry"`
@@ -71,6 +72,7 @@ type Config struct {
 	AgentExecutable string
 	Confirm         bool
 	DataDir         string
+	Expire          time.Duration
 	Git             bool
 	GitEmail        string
 	GitName         string
@@ -199,6 +201,7 @@ func (cmd *RestartCmd) Run(config *Config) error {
 		config.Memlock,
 		config.Socket,
 		identitiesText,
+		config.Expire,
 	)
 }
 
@@ -223,6 +226,7 @@ func (cmd *StartCmd) Run(config *Config) error {
 		config.Memlock,
 		config.Socket,
 		identitiesText,
+		config.Expire,
 	)
 }
 
@@ -288,7 +292,7 @@ func englishPlural(singular, plural string, count int) string {
 	return plural
 }
 
-func decryptEntry(agentExecutable string, agentMemlock bool, agentSocket, identities, passwordStore, name string) (string, error) {
+func decryptEntry(agentExecutable string, agentMemlock bool, agentSocket, identities, passwordStore, name string, expire time.Duration) (string, error) {
 	if agentSocket == "" {
 		return crypto.DecryptEntry(identities, passwordStore, name)
 	}
@@ -311,7 +315,7 @@ func decryptEntry(agentExecutable string, agentMemlock bool, agentSocket, identi
 			return "", err
 		}
 
-		if err := agent.StartProcess(agentExecutable, agentMemlock, agentSocket, identitiesText); err != nil {
+		if err := agent.StartProcess(agentExecutable, agentMemlock, agentSocket, identitiesText, expire); err != nil {
 			return "", fmt.Errorf("failed to start agent: %v", err)
 		}
 	}
@@ -352,6 +356,7 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		config.Identities,
 		config.Store,
 		name,
+		config.Expire,
 	)
 	if err != nil {
 		return err
@@ -487,6 +492,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 			config.Identities,
 			config.Store,
 			name,
+			config.Expire,
 		)
 		if err != nil {
 			return err
@@ -907,6 +913,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 		config.Identities,
 		config.Store,
 		name,
+		config.Expire,
 	)
 	if err != nil {
 		return err
@@ -944,6 +951,7 @@ func initConfig(cli *CLI) (*Config, error) {
 		AgentExecutable: cli.AgentExecutable,
 		Confirm:         cli.Confirm,
 		DataDir:         cli.Dir,
+		Expire:          cli.Expire,
 		Git:             cli.Git,
 		GitEmail:        cli.GitEmail,
 		GitName:         cli.GitName,
@@ -1052,6 +1060,7 @@ func main() {
 			"GitEnv":      pago.GitEnv,
 			"GitNameEnv":  pago.GitNameEnv,
 			"MemlockEnv":  pago.MemlockEnv,
+			"ExpireEnv":   pago.ExpireEnv,
 			"SocketEnv":   pago.SocketEnv,
 			"TimeoutEnv":  pago.TimeoutEnv,
 			"LengthEnv":   pago.LengthEnv,

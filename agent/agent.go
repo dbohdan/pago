@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"dbohdan.com/pago"
 	"dbohdan.com/pago/crypto"
@@ -24,13 +25,13 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-func StartProcess(executable string, memlock bool, socket, identitiesText string) error {
+func StartProcess(executable string, memlock bool, socket, identitiesText string, expire time.Duration) error {
 	memlockFlag := "--memlock"
 	if !memlock {
 		memlockFlag = "--no-memlock"
 	}
 
-	cmd := exec.Command(executable, "run", memlockFlag, "--socket", socket)
+	cmd := exec.Command(executable, "run", memlockFlag, "--socket", socket, "--expire", expire.String())
 
 	// Start the process in the background.
 	if err := cmd.Start(); err != nil {
@@ -61,7 +62,7 @@ func StartProcess(executable string, memlock bool, socket, identitiesText string
 	return err
 }
 
-func Run(socket string) error {
+func Run(socket string, expire time.Duration) error {
 	if err := Ping(socket); err == nil {
 		return fmt.Errorf("found agent responding on socket")
 	}
@@ -73,12 +74,19 @@ func Run(socket string) error {
 
 	os.Remove(socket)
 
+	var timer *time.Timer
 	identities := []age.Identity{}
 	srv := redcon.NewServerNetwork(
 		"unix",
 		socket,
 		func(conn redcon.Conn, cmd redcon.Command) {
-			switch strings.ToUpper(string(cmd.Args[0])) {
+			cmdName := strings.ToUpper(string(cmd.Args[0]))
+
+			if timer != nil && cmdName != "PING" && cmdName != "SHUTDOWN" {
+				timer.Reset(expire)
+			}
+
+			switch cmdName {
 
 			case "DECRYPT":
 				if len(cmd.Args) != 2 {
@@ -126,6 +134,9 @@ func Run(socket string) error {
 				conn.WriteString("PONG")
 
 			case "SHUTDOWN":
+				if timer != nil {
+					timer.Stop()
+				}
 				conn.WriteString("OK")
 				conn.Close()
 
@@ -139,6 +150,12 @@ func Run(socket string) error {
 		nil,
 	)
 
+	if expire > 0 {
+		timer = time.AfterFunc(expire, func() {
+			srv.Close()
+		})
+	}
+
 	errc := make(chan error)
 
 	go func() {
@@ -151,7 +168,11 @@ func Run(socket string) error {
 		}
 	}()
 
-	return srv.ListenServeAndSignal(errc)
+	err := srv.ListenServeAndSignal(errc)
+	if err != nil && strings.Contains(err.Error(), "server closed") {
+		return nil
+	}
+	return err
 }
 
 func Message(socket string, args ...string) (string, error) {
