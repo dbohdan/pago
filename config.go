@@ -55,6 +55,11 @@ func DefaultSocket() (string, error) {
 		return "", err
 	}
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		return "", err
+	}
+
 	// Build candidate directories in priority order.
 	candidates := []string{}
 	subdir := "pago"
@@ -85,7 +90,7 @@ func DefaultSocket() (string, error) {
 	// If no candidate exists, fall back to the temporary directory.
 	if runtimeDir == "" {
 		runtimeDir = os.TempDir()
-		subdir = "pago-" + currentUser.Username
+		subdir = "pago-" + currentUser.Username + "@" + hostname
 	}
 
 	return filepath.Join(runtimeDir, subdir, "socket"), nil
