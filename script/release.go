@@ -52,6 +52,7 @@ func buildAll() error {
 	}
 
 	targets := []BuildTarget{
+		{"android", "arm64"},
 		{"darwin", "amd64"},
 		{"darwin", "arm64"},
 		{"freebsd", "amd64"},
