@@ -1,7 +1,7 @@
 # pago
 
 > [!WARNING]
-> :construction: **pago is in [beta](https://en.wikipedia.org/wiki/Software_release_life_cycle#Beta).**
+> **pago is in [beta](https://en.wikipedia.org/wiki/Software_release_life_cycle#Beta).**
 > Using pago carries a greater risk of bugs, security vulnerabilities, and data loss than using mature software.
 
 **pago** is a command-line password manager.
