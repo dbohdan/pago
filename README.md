@@ -60,6 +60,7 @@ This ruled out [passage](https://github.com/FiloSottile/passage), which had no a
 [kbs2](https://github.com/woodruffw/kbs2) didn't integrate with Git.
 [seniorpw](https://gitlab.com/retirement-home/seniorpw) matched all of my criteria and was the closest to `pass`.
 It is what I would most likely be using if I didn't decide to develop my own.
+The [`-k`/`--key` feature](https://gitlab.com/retirement-home/seniorpw#editshowmoveremove-a-password) in seniorpw later inspired [TOML entries](#toml-entries) and the approach to [TOTP](#totp).
 
 All of the above password managers are worth your attention.
 For more options, see ["Awesome age"](https://github.com/FiloSottile/awesome-age).
