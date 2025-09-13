@@ -153,7 +153,7 @@ func TestAdd(t *testing.T) {
 		t.Errorf("Command `add` failed: %v", err)
 	}
 
-	re := "Password saved"
+	re := "Entry saved"
 	if matched, _ := regexp.MatchString(re, output); !matched {
 		t.Errorf("Expected %q in stdout", re)
 	}
@@ -174,7 +174,7 @@ func TestAddMultiline(t *testing.T) {
 		t.Errorf("Command `add --multiline` failed: %v", err)
 	}
 
-	re := "Reading password from stdin until EOF"
+	re := "Reading from stdin until EOF"
 	if matched, _ := regexp.MatchString(re, output); !matched {
 		t.Errorf("Expected %q in output", re)
 	}
@@ -696,6 +696,84 @@ func TestShowName(t *testing.T) {
 	re := `^a{32}$`
 	if matched, _ := regexp.MatchString(re, strings.TrimSpace(output)); !matched {
 		t.Errorf("Expected %q in output", re)
+	}
+}
+
+func TestShowKey(t *testing.T) {
+	var buf bytes.Buffer
+
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		// Add a TOML entry.
+		cmd := exec.Command(commandPago, "--dir", dataDir, "add", "toml-test", "--multiline")
+		cmd.Stdin = strings.NewReader(`
+# Comment.
+foo = "string"
+bar = 5
+
+phi = 1.68
+# Another comment.
+baz = [1, 2, 3, true, false]
+qux = {"key" = "value"}
+`)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+		if err != nil {
+			return stdout.String() + "\n" + stderr.String(), err
+		}
+
+		testCases := []struct {
+			key      string
+			expected string
+			wantErr  bool
+		}{
+			{"foo", "string", false},
+			{"bar", "5", false},
+			{"phi", "1.68", false},
+			{"baz", "[1, 2, 3, true, false]", false},
+			{"quux", "", true},
+			{"nonexistent", "", true},
+		}
+
+		for _, tc := range testCases {
+			// Show a key from the entry.
+			c, err := expect.NewConsole()
+			if err != nil {
+				return "", fmt.Errorf("failed to create console: %w", err)
+			}
+			defer c.Close()
+
+			buf.Reset()
+
+			cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "--key", tc.key, "toml-test")
+			cmd.Stdin = c.Tty()
+			cmd.Stdout = &buf
+			cmd.Stderr = c.Tty()
+
+			err = cmd.Start()
+			if err != nil {
+				return "", fmt.Errorf("failed to start command for key %q: %w", tc.key, err)
+			}
+
+			_, _ = c.ExpectString("Enter password")
+			_, _ = c.SendLine(password)
+
+			err = cmd.Wait()
+			if (err != nil) != tc.wantErr {
+				return "", fmt.Errorf("command failed for key %q: %w", tc.key, err)
+			}
+
+			output := strings.TrimSpace(buf.String())
+			if output != tc.expected {
+				return "", fmt.Errorf("for key %q, expected %q, got %q", tc.key, tc.expected, output)
+			}
+		}
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Command `show --key` failed: %v (%q)", err, buf)
 	}
 }
 

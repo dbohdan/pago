@@ -25,7 +25,7 @@ import (
 	"github.com/valkey-io/valkey-go"
 )
 
-func StartProcess(executable string, memlock bool, socket, identitiesText string, expire time.Duration) error {
+func StartProcess(executable string, expire time.Duration, memlock bool, socket, identitiesText string) error {
 	memlockFlag := "--memlock"
 	if !memlock {
 		memlockFlag = "--no-memlock"

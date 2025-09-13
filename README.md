@@ -19,7 +19,7 @@ Recipients can be:
 - age recipients
 - SSH public keys
 
-A private key matching one of the recipient public keys can decrypt the password.
+A private key matching one of the recipient public keys can decrypt the password entry.
 The private keys are called "identities".
 Identities can be:
 - age identities
@@ -160,7 +160,9 @@ pago add -l 32 -p '[A-Za-z0-9#$%]' foo/bar
 # Input your own password.
 pago add -i foo/bar
 
-# Read a multiline secret.
+# Read a multiline secret from stdin.
+# This is useful for storing age keys or structured data.
+# See the "TOML entries" section for more on the latter.
 age-keygen | pago add -m foo/bar
 ```
 
@@ -238,6 +240,43 @@ pago rename foo/baz qux/quux
 
 This creates a Git commit by default.
 
+### TOML entries
+
+pago can store and retrieve structured data in the [TOML](https://toml.io/) format.
+This is useful for storing multiple related values in a single entry, such as API keys, usernames, and URLs.
+
+To create a TOML entry, use `pago add --multiline` and provide TOML content on standard input.
+
+```shell
+pago add -m services/my-api <<EOF
+user = "jdoe"
+key = "abc-123"
+url = "https://api.example.com"
+numbers = [1, 1, 2, 3, 5]
+EOF
+```
+
+You can then retrieve individual values from the TOML entry using the `-k`/`--key` option with the commands `show`, `clip`, and `pick`.
+
+```shell
+# Show the user from the TOML entry.
+pago show -k user services/my-api
+# => jdoe
+
+# Show an array.
+pago show -k numbers services/my-api
+# => [1, 1, 2, 3, 5]
+
+# Copy the key to the clipboard.
+pago clip -k key services/my-api
+```
+
+When an entry is parsed as TOML, pago can retrieve scalar values (strings, numbers, booleans) and arrays of scalars.
+Arrays and scalars other than strings are encoded as TOML for output.
+pago cannot retrieve tables.
+
+If you show or clip a TOML entry without `--key`, the entire TOML document is returned.
+
 ### Agent
 
 The agent keeps your identities in memory to avoid repeated password prompts.
@@ -256,7 +295,7 @@ pago agent start --expire 1h
 # By default, the agent locks its memory to prevent secrets from being written to swap.
 # You may need to run the command `ulimit -l 100000` to let it lock enough memory.
 # Alternatively, you can disable memory locking
-# with the environment variable `PAGO_MEMLOCK=0` or the flag `--no-memlock`.
+# with the environment variable `PAGO_MEMLOCK=0` or the option  `--no-memlock`.
 pago agent start --no-memlock
 
 # Run without an agent.
@@ -327,7 +366,7 @@ cap_mkdb /etc/login.conf
 - `PAGO_AGENT`:
   The agent executable
 - `PAGO_CLIP`:
-  The command to use to copy the password to the clipboard.
+  The command to use to copy text to the clipboard.
   The default differs by platform:
     - Linux and BSD: `xclip -in -selection clip`
     - macOS: `copy`

@@ -235,12 +235,12 @@ func DecryptEntry(identities, passwordStore, name string) (string, error) {
 		return "", fmt.Errorf("failed to decrypt: %v", err)
 	}
 
-	password, err := io.ReadAll(r)
+	content, err := io.ReadAll(r)
 	if err != nil {
 		return "", fmt.Errorf("failed to read decrypted content: %v", err)
 	}
 
-	return string(password), nil
+	return string(content), nil
 }
 
 func EntryFile(passwordStore, name string) (string, error) {

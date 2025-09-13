@@ -4,6 +4,7 @@ go 1.24
 
 require (
 	filippo.io/age v1.2.1
+	github.com/BurntSushi/toml v1.4.0
 	github.com/Netflix/go-expect v0.0.0-20220104043353-73e0943537d2
 	github.com/adrg/xdg v0.5.3
 	github.com/alecthomas/kong v1.12.1

@@ -17,6 +17,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strings"
 	"time"
@@ -31,6 +32,7 @@ import (
 
 	"filippo.io/age"
 	"filippo.io/age/armor"
+	"github.com/BurntSushi/toml"
 	"github.com/alecthomas/kong"
 	"github.com/alecthomas/repr"
 	"github.com/anmitsu/go-shlex"
@@ -60,11 +62,11 @@ type CLI struct {
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
 	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
 	Init     InitCmd     `cmd:"" help:"Create a new password store"`
-	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password for an entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
+	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
 	Rekey    RekeyCmd    `cmd:"" help:"Reencrypt all password entries with the recipients file"`
 	Rename   RenameCmd   `cmd:"" aliases:"mv,r" help:"Rename or move a password entry"`
 	Rewrap   RewrapCmd   `cmd:"" help:"Change the password for the identities file"`
-	Show     ShowCmd     `cmd:"" aliases:"s" help:"Show password for entry or list entries"`
+	Show     ShowCmd     `cmd:"" aliases:"s" help:"Show password entry or list entries"`
 	Version  VersionCmd  `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
 }
 
@@ -98,7 +100,7 @@ type AddCmd struct {
 
 	Force     bool `short:"f" help:"Overwrite existing entry"`
 	Input     bool `short:"i" help:"Input the password manually" xor:"mode"`
-	Multiline bool `short:"m" help:"Read password from stdin until EOF" xor:"mode"`
+	Multiline bool `short:"m" help:"Read from stdin until EOF" xor:"mode"`
 	Random    bool `short:"r" help:"Generate a random password" xor:"mode"`
 }
 
@@ -124,7 +126,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 	var password string
 
 	if cmd.Multiline {
-		fmt.Fprintln(os.Stderr, "Reading password from stdin until EOF:")
+		fmt.Fprintln(os.Stderr, "Reading from stdin until EOF:")
 
 		var buf bytes.Buffer
 		if _, err := io.Copy(&buf, os.Stdin); err != nil {
@@ -171,7 +173,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 		}
 	}
 
-	fmt.Fprintln(os.Stderr, "Password saved")
+	fmt.Fprintln(os.Stderr, "Entry saved")
 	return nil
 }
 
@@ -198,10 +200,10 @@ func (cmd *RestartCmd) Run(config *Config) error {
 
 	return agent.StartProcess(
 		config.AgentExecutable,
+		config.Expire,
 		config.Memlock,
 		config.Socket,
 		identitiesText,
-		config.Expire,
 	)
 }
 
@@ -223,10 +225,10 @@ func (cmd *StartCmd) Run(config *Config) error {
 
 	return agent.StartProcess(
 		config.AgentExecutable,
+		config.Expire,
 		config.Memlock,
 		config.Socket,
 		identitiesText,
-		config.Expire,
 	)
 }
 
@@ -262,6 +264,7 @@ func (cmd *StopCmd) Run(config *Config) error {
 
 type ClipCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
+	Key  string `short:"k" help:"Retrieve a key from a TOML entry"`
 
 	Command string `short:"c" env:"${ClipEnv}" default:"${DefaultClip}" help:"Command for copying text from stdin to clipboard (${env})"`
 	Pick    bool   `short:"p" help:"Pick entry using fuzzy finder"`
@@ -292,7 +295,46 @@ func englishPlural(singular, plural string, count int) string {
 	return plural
 }
 
-func decryptEntry(agentExecutable string, agentMemlock bool, agentSocket, identities, passwordStore, name string, expire time.Duration) (string, error) {
+func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name, key string) (string, error) {
+	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
+	if err != nil {
+		return "", err
+	}
+
+	if key == "" {
+		return content, nil
+	}
+
+	var data map[string]any
+	if _, err := toml.Decode(content, &data); err != nil {
+		return "", fmt.Errorf("failed to parse entry as TOML: %w", err)
+	}
+
+	value, ok := data[key]
+	if !ok {
+		return "", fmt.Errorf("key %q not found in entry %q", key, name)
+	}
+
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+
+	case reflect.Map:
+		return "", fmt.Errorf("key %q in entry %q is a table", key, name)
+
+	case reflect.String:
+		return v.String(), nil
+	}
+
+	var buf bytes.Buffer
+	err = toml.NewEncoder(&buf).Encode(value)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode decoded value: %v", err)
+	}
+
+	return buf.String(), nil
+}
+
+func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string) (string, error) {
 	if agentSocket == "" {
 		return crypto.DecryptEntry(identities, passwordStore, name)
 	}
@@ -315,17 +357,17 @@ func decryptEntry(agentExecutable string, agentMemlock bool, agentSocket, identi
 			return "", err
 		}
 
-		if err := agent.StartProcess(agentExecutable, agentMemlock, agentSocket, identitiesText, expire); err != nil {
+		if err := agent.StartProcess(agentExecutable, agentExpire, agentMemlock, agentSocket, identitiesText); err != nil {
 			return "", fmt.Errorf("failed to start agent: %v", err)
 		}
 	}
 
-	password, err := agent.Decrypt(agentSocket, encryptedData)
+	content, err := agent.Decrypt(agentSocket, encryptedData)
 	if err != nil {
 		return "", err
 	}
 
-	return password, nil
+	return content, nil
 }
 
 func (cmd *ClipCmd) Run(config *Config) error {
@@ -349,14 +391,15 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
-	password, err := decryptEntry(
+	password, err := getPassword(
 		config.AgentExecutable,
+		config.Expire,
 		config.Memlock,
 		config.Socket,
 		config.Identities,
 		config.Store,
 		name,
-		config.Expire,
+		cmd.Key,
 	)
 	if err != nil {
 		return err
@@ -480,19 +523,19 @@ func (cmd *EditCmd) Run(config *Config) error {
 		name = picked
 	}
 
-	var password string
+	var content string
 	var err error
 
 	if entryExists(config.Store, name) {
-		// Decrypt the existing password.
-		password, err = decryptEntry(
+		// Decrypt the existing entry.
+		content, err = decryptEntry(
 			config.AgentExecutable,
+			config.Expire,
 			config.Memlock,
 			config.Socket,
 			config.Identities,
 			config.Store,
 			name,
-			config.Expire,
 		)
 		if err != nil {
 			return err
@@ -501,20 +544,20 @@ func (cmd *EditCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
-	text, err := editor.Edit(password, cmd.Save)
+	newContent, err := editor.Edit(content, cmd.Save)
 	if err != nil && !errors.Is(err, editor.CancelError) {
 		return fmt.Errorf("editor failed: %v", err)
 	}
 
 	fmt.Println()
 
-	if text == password || errors.Is(err, editor.CancelError) {
+	if newContent == content || errors.Is(err, editor.CancelError) {
 		fmt.Fprintln(os.Stderr, "No changes made")
 		return nil
 	}
 
-	// Save the edited password.
-	if err := crypto.SaveEntry(config.Recipients, config.Store, name, text); err != nil {
+	// Save the edited entry.
+	if err := crypto.SaveEntry(config.Recipients, config.Store, name, newContent); err != nil {
 		return err
 	}
 
@@ -535,7 +578,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 		}
 	}
 
-	fmt.Fprintln(os.Stderr, "Password updated")
+	fmt.Fprintln(os.Stderr, "Entry updated")
 	return nil
 }
 
@@ -679,10 +722,11 @@ func (cmd *InitCmd) Run(config *Config) error {
 
 type PickCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
+	Key  string `short:"k" help:"Retrieve a key from a TOML entry"`
 }
 
 func (cmd *PickCmd) Run(config *Config) error {
-	showCmd := &ShowCmd{Name: cmd.Name, Pick: true}
+	showCmd := &ShowCmd{Name: cmd.Name, Key: cmd.Key, Pick: true}
 	return showCmd.Run(config)
 }
 
@@ -878,6 +922,7 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 
 type ShowCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
+	Key  string `short:"k" help:"Retrieve a key from a TOML entry"`
 	Pick bool   `short:"p" help:"Pick entry using fuzzy finder"`
 }
 
@@ -906,14 +951,15 @@ func (cmd *ShowCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
 	}
 
-	password, err := decryptEntry(
+	password, err := getPassword(
 		config.AgentExecutable,
+		config.Expire,
 		config.Memlock,
 		config.Socket,
 		config.Identities,
 		config.Store,
 		name,
-		config.Expire,
+		cmd.Key,
 	)
 	if err != nil {
 		return err
