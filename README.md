@@ -277,6 +277,29 @@ pago cannot retrieve tables.
 
 If you show or clip a TOML entry without `--key`, the entire TOML document is returned.
 
+### TOTP
+
+pago can generate [time-based one-time passwords (TOTP)](https://en.wikipedia.org/wiki/Time-based_one-time_password) from a [TOML entry](#toml-entries).
+To use this feature, store the `otpauth://` URI in a key named `otp`.
+
+```shell
+pago add -m services/my-service <<EOF
+user = "jdoe"
+otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"
+EOF
+```
+
+When you use `show` or `clip` with the key `otp`, pago will generate and output a TOTP code.
+
+```shell
+# Show the TOTP code.
+pago show -k otp services/my-service
+# => 123456
+
+# Copy the TOTP code to the clipboard.
+pago clip -k otp services/my-service
+```
+
 ### Agent
 
 The agent keeps your identities in memory to avoid repeated password prompts.

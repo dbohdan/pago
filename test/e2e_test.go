@@ -777,6 +777,78 @@ qux = {"key" = "value"}
 	}
 }
 
+func TestShowOTP(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		// Add a TOML entry with a 6-digit otpauth URI.
+		cmd := exec.Command(commandPago, "--dir", dataDir, "add", "otp-test-6digit", "--multiline")
+		// Example URI from https://github.com/google/google-authenticator/wiki/Key-Uri-Format
+		cmd.Stdin = strings.NewReader(`otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"`)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+		if err != nil {
+			return stdout.String() + "\n" + stderr.String(), err
+		}
+
+		// Add another TOML entry with an 8-digit otpauth URI.
+		cmd = exec.Command(commandPago, "--dir", dataDir, "add", "otp-test-8digit", "--multiline")
+		cmd.Stdin = strings.NewReader(`otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&algorithm=sha256&digits=8"`)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err = cmd.Run()
+		if err != nil {
+			return stdout.String() + "\n" + stderr.String(), err
+		}
+
+		checkOTP := func(entryName, expectedPattern string) error {
+			var buf bytes.Buffer
+			c, err := expect.NewConsole()
+			if err != nil {
+				return fmt.Errorf("failed to create console: %w", err)
+			}
+			defer c.Close()
+
+			cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "--key", "otp", entryName)
+			cmd.Stdin = c.Tty()
+			cmd.Stdout = &buf
+			cmd.Stderr = c.Tty()
+
+			err = cmd.Start()
+			if err != nil {
+				return fmt.Errorf("failed to start command for key 'otp': %w", err)
+			}
+
+			_, _ = c.ExpectString("Enter password")
+			_, _ = c.SendLine(password)
+
+			err = cmd.Wait()
+			if err != nil {
+				return fmt.Errorf("command failed for key 'otp': %w", err)
+			}
+
+			output := strings.TrimSpace(buf.String())
+			if matched, _ := regexp.MatchString(expectedPattern, output); !matched {
+				return fmt.Errorf("expected OTP matching %q, got %q", expectedPattern, output)
+			}
+			return nil
+		}
+
+		if err := checkOTP("otp-test-6digit", `^\d{6}$`); err != nil {
+			return "", err
+		}
+
+		if err := checkOTP("otp-test-8digit", `^\d{8}$`); err != nil {
+			return "", err
+		}
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Command `show --key otp` failed: %v", err)
+	}
+}
+
 func TestShowTree(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		for _, name := range []string{"foo", "bar", "baz"} {

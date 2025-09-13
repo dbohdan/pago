@@ -37,6 +37,8 @@ import (
 	"github.com/alecthomas/repr"
 	"github.com/anmitsu/go-shlex"
 	gitConfig "github.com/go-git/go-git/v5/config"
+	"github.com/pquerna/otp"
+	"github.com/pquerna/otp/totp"
 )
 
 type CLI struct {
@@ -295,45 +297,6 @@ func englishPlural(singular, plural string, count int) string {
 	return plural
 }
 
-func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name, key string) (string, error) {
-	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
-	if err != nil {
-		return "", err
-	}
-
-	if key == "" {
-		return content, nil
-	}
-
-	var data map[string]any
-	if _, err := toml.Decode(content, &data); err != nil {
-		return "", fmt.Errorf("failed to parse entry as TOML: %w", err)
-	}
-
-	value, ok := data[key]
-	if !ok {
-		return "", fmt.Errorf("key %q not found in entry %q", key, name)
-	}
-
-	v := reflect.ValueOf(value)
-	switch v.Kind() {
-
-	case reflect.Map:
-		return "", fmt.Errorf("key %q in entry %q is a table", key, name)
-
-	case reflect.String:
-		return v.String(), nil
-	}
-
-	var buf bytes.Buffer
-	err = toml.NewEncoder(&buf).Encode(value)
-	if err != nil {
-		return "", fmt.Errorf("failed to encode decoded value: %v", err)
-	}
-
-	return buf.String(), nil
-}
-
 func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string) (string, error) {
 	if agentSocket == "" {
 		return crypto.DecryptEntry(identities, passwordStore, name)
@@ -368,6 +331,71 @@ func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemloc
 	}
 
 	return content, nil
+}
+
+func getOTP(otpURL string) (string, error) {
+	otpKey, err := otp.NewKeyFromURL(otpURL)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse otpauth URL: %w", err)
+	}
+
+	opts := totp.ValidateOpts{
+		Period:    uint(otpKey.Period()),
+		Digits:    otpKey.Digits(),
+		Algorithm: otpKey.Algorithm(),
+	}
+
+	code, err := totp.GenerateCodeCustom(otpKey.Secret(), time.Now(), opts)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate TOTP code: %w", err)
+	}
+
+	return code, nil
+}
+
+func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name, key string) (string, error) {
+	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
+	if err != nil {
+		return "", err
+	}
+
+	if key == "" {
+		return content, nil
+	}
+
+	var data map[string]any
+	if _, err := toml.Decode(content, &data); err != nil {
+		return "", fmt.Errorf("failed to parse entry as TOML: %w", err)
+	}
+
+	value, ok := data[key]
+	if !ok {
+		return "", fmt.Errorf("key %q not found in entry %q", key, name)
+	}
+
+	v := reflect.ValueOf(value)
+	switch v.Kind() {
+
+	case reflect.Map:
+		return "", fmt.Errorf("key %q in entry %q is a table", key, name)
+
+	case reflect.String:
+		s := v.String()
+
+		if key == "otp" {
+			return getOTP(s)
+		}
+
+		return s, nil
+	}
+
+	var buf bytes.Buffer
+	err = toml.NewEncoder(&buf).Encode(value)
+	if err != nil {
+		return "", fmt.Errorf("failed to encode decoded value: %v", err)
+	}
+
+	return buf.String(), nil
 }
 
 func (cmd *ClipCmd) Run(config *Config) error {
