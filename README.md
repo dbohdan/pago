@@ -256,11 +256,15 @@ numbers = [1, 1, 2, 3, 5]
 EOF
 ```
 
-You can then retrieve individual values from the TOML entry using the `-k`/`--key` option with the commands `show`, `clip`, and `pick`.
+You can then retrieve individual values from the TOML entry using the `-k`/`--key` option with the commands `show`, `clip`, and `pick`, or with the `key` command.
 
 ```shell
 # Show the user from the TOML entry.
 pago show -k user services/my-api
+# => jdoe
+
+# The `key` command is a shortcut for `show --key`.
+pago key services/my-api user
 # => jdoe
 
 # Show an array.

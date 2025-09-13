@@ -777,6 +777,61 @@ qux = {"key" = "value"}
 	}
 }
 
+func TestKeyCmd(t *testing.T) {
+	var buf bytes.Buffer
+
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		// Add a TOML entry.
+		cmd := exec.Command(commandPago, "--dir", dataDir, "add", "toml-test", "--multiline")
+		cmd.Stdin = strings.NewReader(`foo = "string"`)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+		if err != nil {
+			return stdout.String() + "\n" + stderr.String(), err
+		}
+
+		// Show a key from the entry using the 'key' command.
+		c, err := expect.NewConsole()
+		if err != nil {
+			return "", fmt.Errorf("failed to create console: %w", err)
+		}
+		defer c.Close()
+
+		buf.Reset()
+
+		cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "key", "toml-test", "foo")
+		cmd.Stdin = c.Tty()
+		cmd.Stdout = &buf
+		cmd.Stderr = c.Tty()
+
+		err = cmd.Start()
+		if err != nil {
+			return "", fmt.Errorf("failed to start command for key %q: %w", "foo", err)
+		}
+
+		_, _ = c.ExpectString("Enter password")
+		_, _ = c.SendLine(password)
+
+		err = cmd.Wait()
+		if err != nil {
+			return "", fmt.Errorf("command failed for key %q: %w", "foo", err)
+		}
+
+		output := strings.TrimSpace(buf.String())
+		expected := "string"
+		if output != expected {
+			return "", fmt.Errorf("for key %q, expected %q, got %q", "foo", expected, output)
+		}
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Command `key` failed: %v (%q)", err, buf)
+	}
+}
+
 func TestShowOTP(t *testing.T) {
 	_, err := withPagoDir(func(dataDir string) (string, error) {
 		// Add a TOML entry with a 6-digit otpauth URI.

@@ -64,6 +64,7 @@ type CLI struct {
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
 	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
 	Init     InitCmd     `cmd:"" help:"Create a new password store"`
+	Key      KeyCmd      `cmd:"" aliases:"k" help:"Show a key from a TOML entry. A shortcut for \"show --key\"."`
 	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
 	Rekey    RekeyCmd    `cmd:"" help:"Reencrypt all password entries with the recipients file"`
 	Rename   RenameCmd   `cmd:"" aliases:"mv,r" help:"Rename or move a password entry"`
@@ -746,6 +747,20 @@ func (cmd *InitCmd) Run(config *Config) error {
 	}
 
 	return nil
+}
+
+type KeyCmd struct {
+	Name string `arg:"" help:"Name of the password entry"`
+	Key  string `arg:"" help:"Key to retrieve from the TOML entry"`
+}
+
+func (cmd *KeyCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	showCmd := &ShowCmd{Name: cmd.Name, Key: cmd.Key}
+	return showCmd.Run(config)
 }
 
 type PickCmd struct {
