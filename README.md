@@ -396,6 +396,7 @@ cap_mkdb /etc/login.conf
 - `PAGO_CLIP`:
   The command to use to copy text to the clipboard.
   The default differs by platform:
+    - Android: `termux-clipboard-set`
     - Linux and BSD: `xclip -in -selection clip`
     - macOS: `copy`
 - `PAGO_CONFIRM`:

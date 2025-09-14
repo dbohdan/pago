@@ -1,4 +1,4 @@
-//go:build !darwin && !windows
+//go:build !(android || darwin || windows)
 
 // pago - a command-line password manager.
 //
