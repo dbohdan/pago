@@ -360,13 +360,30 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 		return "", err
 	}
 
-	if key == "" {
+	isToml := strings.HasPrefix(content, "# TOML")
+	if !isToml {
+		if key != "" {
+			return "", fmt.Errorf("entry %q is not a TOML entry; cannot use --key", name)
+		}
+
 		return content, nil
 	}
 
 	var data map[string]any
 	if _, err := toml.Decode(content, &data); err != nil {
 		return "", fmt.Errorf("failed to parse entry as TOML: %w", err)
+	}
+
+	if key == "" {
+		key = "password"
+
+		if defaultKey, ok := data["default"]; ok {
+			if defaultKeyStr, ok := defaultKey.(string); ok {
+				key = defaultKeyStr
+			} else {
+				return "", fmt.Errorf(`key "default" must have string value`)
+			}
+		}
 	}
 
 	value, ok := data[key]

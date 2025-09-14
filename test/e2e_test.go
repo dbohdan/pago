@@ -704,9 +704,10 @@ func TestShowKey(t *testing.T) {
 
 	_, err := withPagoDir(func(dataDir string) (string, error) {
 		// Add a TOML entry.
-		cmd := exec.Command(commandPago, "--dir", dataDir, "add", "toml-test", "--multiline")
-		cmd.Stdin = strings.NewReader(`
+		cmd := exec.Command(commandPago, "--dir", dataDir, "add", "toml", "--multiline")
+		cmd.Stdin = strings.NewReader(`# TOML
 # Comment.
+password = "hunter2"
 foo = "string"
 bar = 5
 
@@ -723,17 +724,43 @@ qux = {"key" = "value"}
 			return stdout.String() + "\n" + stderr.String(), err
 		}
 
+		// Add a TOML entry with a custom default key.
+		cmd = exec.Command(commandPago, "--dir", dataDir, "add", "toml-default", "--multiline")
+		cmd.Stdin = strings.NewReader(`# TOML
+default = "foo"
+foo = "secret"
+`)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err = cmd.Run()
+		if err != nil {
+			return stdout.String() + "\n" + stderr.String(), err
+		}
+
+		// Add a non-TOML entry.
+		_, _, err = runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "not-toml", "--random",
+		)
+		if err != nil {
+			return "", err
+		}
+
 		testCases := []struct {
+			entry    string
 			key      string
 			expected string
 			wantErr  bool
 		}{
-			{"foo", "string", false},
-			{"bar", "5", false},
-			{"phi", "1.68", false},
-			{"baz", "[1, 2, 3, true, false]", false},
-			{"quux", "", true},
-			{"nonexistent", "", true},
+			{"toml", "", "hunter2", false},
+			{"toml", "foo", "string", false},
+			{"toml", "bar", "5", false},
+			{"toml", "phi", "1.68", false},
+			{"toml", "baz", "[1, 2, 3, true, false]", false},
+			{"toml", "quux", "", true},
+			{"toml", "nonexistent", "", true},
+			{"toml-default", "", "secret", false},
+			{"not-toml", "foo", "", true},
 		}
 
 		for _, tc := range testCases {
@@ -746,14 +773,19 @@ qux = {"key" = "value"}
 
 			buf.Reset()
 
-			cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "--key", tc.key, "toml-test")
+			var cmd *exec.Cmd
+			if tc.key == "" {
+				cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", tc.entry)
+			} else {
+				cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "--key", tc.key, tc.entry)
+			}
 			cmd.Stdin = c.Tty()
 			cmd.Stdout = &buf
 			cmd.Stderr = c.Tty()
 
 			err = cmd.Start()
 			if err != nil {
-				return "", fmt.Errorf("failed to start command for key %q: %w", tc.key, err)
+				return "", fmt.Errorf("failed to start command for entry %q key %q: %w", tc.entry, tc.key, err)
 			}
 
 			_, _ = c.ExpectString("Enter password")
@@ -761,12 +793,12 @@ qux = {"key" = "value"}
 
 			err = cmd.Wait()
 			if (err != nil) != tc.wantErr {
-				return "", fmt.Errorf("command failed for key %q: %w", tc.key, err)
+				return "", fmt.Errorf("command failed for entry %q key %q: %w", tc.entry, tc.key, err)
 			}
 
 			output := strings.TrimSpace(buf.String())
-			if output != tc.expected {
-				return "", fmt.Errorf("for key %q, expected %q, got %q", tc.key, tc.expected, output)
+			if !tc.wantErr && output != tc.expected {
+				return "", fmt.Errorf("for entry %q key %q, expected %q, got %q", tc.entry, tc.key, tc.expected, output)
 			}
 		}
 
@@ -782,8 +814,9 @@ func TestKeyCmd(t *testing.T) {
 
 	_, err := withPagoDir(func(dataDir string) (string, error) {
 		// Add a TOML entry.
-		cmd := exec.Command(commandPago, "--dir", dataDir, "add", "toml-test", "--multiline")
-		cmd.Stdin = strings.NewReader(`foo = "string"`)
+		cmd := exec.Command(commandPago, "--dir", dataDir, "add", "toml", "--multiline")
+		cmd.Stdin = strings.NewReader(`# TOML
+foo = "string"`)
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
@@ -801,7 +834,7 @@ func TestKeyCmd(t *testing.T) {
 
 		buf.Reset()
 
-		cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "key", "toml-test", "foo")
+		cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "key", "toml", "foo")
 		cmd.Stdin = c.Tty()
 		cmd.Stdout = &buf
 		cmd.Stderr = c.Tty()
@@ -837,7 +870,8 @@ func TestShowOTP(t *testing.T) {
 		// Add a TOML entry with a 6-digit otpauth URI.
 		cmd := exec.Command(commandPago, "--dir", dataDir, "add", "otp-test-6digit", "--multiline")
 		// Example URI from https://github.com/google/google-authenticator/wiki/Key-Uri-Format
-		cmd.Stdin = strings.NewReader(`otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"`)
+		cmd.Stdin = strings.NewReader(`# TOML
+otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"`)
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
@@ -848,7 +882,8 @@ func TestShowOTP(t *testing.T) {
 
 		// Add another TOML entry with an 8-digit otpauth URI.
 		cmd = exec.Command(commandPago, "--dir", dataDir, "add", "otp-test-8digit", "--multiline")
-		cmd.Stdin = strings.NewReader(`otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&algorithm=sha256&digits=8"`)
+		cmd.Stdin = strings.NewReader(`# TOML
+otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example&algorithm=sha256&digits=8"`)
 		cmd.Stdout = &stdout
 		cmd.Stderr = &stderr
 		err = cmd.Run()

@@ -247,17 +247,35 @@ pago can store and retrieve structured data in the [TOML](https://toml.io/) form
 This is useful for storing multiple related values in a single entry, such as API keys, usernames, and URLs.
 
 To create a TOML entry, use `pago add --multiline` and provide TOML content on standard input.
+The content must start with the string `# TOML`.
 
 ```shell
 pago add -m services/my-api <<EOF
+# TOML
 user = "jdoe"
-key = "abc-123"
+password = "abcdef"
+token = "tok-123"
 url = "https://api.example.com"
 numbers = [1, 1, 2, 3, 5]
 EOF
 ```
 
-You can then retrieve individual values from the TOML entry using the `-k`/`--key` option with the commands `show`, `clip`, and `pick`, or with the `key` command.
+When you `show` or `clip` a TOML entry without specifying a key, pago will use a default key.
+The default key is `password`.
+You can specify a different default key by adding a key `default` to the TOML entry.
+
+```shell
+pago add -m services/my-api-custom-default <<EOF
+# TOML
+default = "api-key"
+api-key = "xyz-456"
+EOF
+
+pago show services/my-api-custom-default
+# => xyz-456
+```
+
+You can retrieve other values from the TOML entry using the `-k`/`--key` option with the commands `show`, `clip`, and `pick`, or with the `key` command.
 
 ```shell
 # Show the user from the TOML entry.
@@ -280,15 +298,15 @@ When an entry is parsed as TOML, pago can retrieve scalar values (strings, numbe
 Arrays and scalars other than strings are encoded as TOML for output.
 pago cannot retrieve tables.
 
-If you show or clip a TOML entry without `--key`, the entire TOML document is returned.
-
 ### TOTP
 
 pago can generate [time-based one-time passwords (TOTP)](https://en.wikipedia.org/wiki/Time-based_one-time_password) from a [TOML entry](#toml-entries).
 To use this feature, store the `otpauth://` URI in a key named `otp`.
+The entry must start with `# TOML`.
 
 ```shell
 pago add -m services/my-service <<EOF
+# TOML
 user = "jdoe"
 otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"
 EOF
