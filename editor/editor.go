@@ -8,25 +8,18 @@ package editor
 import (
 	"fmt"
 
-	"dbohdan.com/pago/textarea"
-	"github.com/charmbracelet/bubbles/cursor"
-	tea "github.com/charmbracelet/bubbletea"
-	style "github.com/charmbracelet/lipgloss"
+	"github.com/atotto/clipboard"
+	"github.com/dustin/go-humanize"
+	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/tview"
 )
-
-type editor struct {
-	err      error
-	save     bool
-	textarea textarea.Model
-	title    string
-}
 
 type cancelError struct{}
 
 const (
-	bannerNoSave    = "[ Ctrl+V: Paste ] [ Ctrl+C: Cancel ]"
-	bannerSave      = "[ Ctrl+D: Save ] [ Ctrl+V: Paste ] [ Ctrl+C: Cancel ]"
-	editorCharLimit = 1 << 16
+	bannerNoSave    = "%q [ Ctrl+V Paste ] [ Ctrl+C: Cancel ]"
+	bannerSave      = "%q [ Ctrl+D: Save ] [ Ctrl+V Paste ] [ Ctrl+C: Cancel ]"
+	editorCharLimit = 1 << 30
 )
 
 var CancelError = &cancelError{}
@@ -35,85 +28,94 @@ func (e *cancelError) Error() string {
 	return "editor canceled"
 }
 
-func (e editor) Init() tea.Cmd {
-	return nil
-}
-
-func (e editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmd tea.Cmd
-
-	switch msg := msg.(type) {
-
-	case tea.KeyMsg:
-		switch msg.Type {
-
-		case tea.KeyCtrlC:
-			e.err = CancelError
-			return e, tea.Quit
-
-		case tea.KeyCtrlD:
-			if !e.save {
-				return e, nil
-			}
-
-			return e, tea.Quit
-		}
-
-	case tea.WindowSizeMsg:
-		e.textarea.SetWidth(msg.Width)
-		e.textarea.SetHeight(msg.Height - 2) // Negative height works.
-	}
-
-	e.textarea, cmd = e.textarea.Update(msg)
-	return e, cmd
-}
-
-func (e editor) View() string {
-	banner := bannerNoSave
-	if e.save {
-		banner = bannerSave
-	}
-
-	return fmt.Sprintf("%q %s\n\n%s", e.title, banner, e.textarea.View())
-}
-
-// Edit presents an editor with a given title and initial content and returns the edited text.
+// Edit presents an editor with a given initial content and returns the edited text.
 func Edit(title, initial string, save bool) (string, error) {
 	if len(initial) > editorCharLimit {
-		return "", fmt.Errorf("initial text too long")
+		return "", fmt.Errorf("initial text too large: over %s", humanize.IBytesN(editorCharLimit, 1))
 	}
 
-	ta := textarea.New()
-	ta.CharLimit = editorCharLimit
-	ta.Cursor.SetMode(cursor.CursorStatic)
-	ta.SetValue(initial)
-	ta.SetWrapMode(textarea.RuneWrap)
-	ta.ShowLineNumbers = false
-	ta.Focus()
+	theme := tview.Theme{}
+	tview.Styles = theme
+	// With a zero theme, selectedStyle must differ from tcell.StyleDefault, or selection will be invisible.
+	selectedStyle := tcell.StyleDefault.Reverse(true)
 
-	// Remove cursor line highlighting.
-	ta.FocusedStyle.CursorLine = style.Style{}
-	// Remove base styling.
-	ta.FocusedStyle.Base = style.Style{}
-	// Match blurred and focused styles.
-	ta.BlurredStyle = ta.FocusedStyle
+	app := tview.NewApplication().
+		EnableMouse(true).
+		EnablePaste(true)
 
-	e := editor{
-		save:     save,
-		title:    title,
-		textarea: ta,
+	textArea := tview.NewTextArea().
+		SetSelectedStyle(selectedStyle).
+		SetText(initial, false).
+		SetWordWrap(false)
+
+	textArea.SetClipboard(
+		func(text string) {
+			_ = clipboard.WriteAll(text)
+		},
+
+		func() string {
+			text, _ := clipboard.ReadAll()
+			return text
+		},
+	)
+
+	var bannerText string
+	if save {
+		bannerText = bannerSave
+	} else {
+		bannerText = bannerNoSave
 	}
+	banner := tview.NewTextView().
+		SetText(fmt.Sprintf(bannerText, title))
 
-	p := tea.NewProgram(e, tea.WithAltScreen())
-	m, err := p.Run()
-	if err != nil {
+	layout := tview.NewFlex().
+		SetDirection(tview.FlexRow).
+		AddItem(banner, 1, 0, false).
+		AddItem(tview.NewBox(), 1, 0, false). // Empty space.
+		AddItem(textArea, 0, 1, true)
+
+	var canceled bool
+	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
+		switch event.Key() {
+
+		case tcell.KeyCtrlC:
+			canceled = true
+			app.Stop()
+
+			return nil
+
+		case tcell.KeyCtrlD:
+			if save {
+				app.Stop()
+			}
+
+			return nil
+
+		case tcell.KeyHome:
+			if event.Modifiers()&tcell.ModCtrl != 0 {
+				// Go to the beginning of the buffer.
+				// Not implemented until upstream implements it.
+				return nil
+			}
+
+		case tcell.KeyEnd:
+			if event.Modifiers()&tcell.ModCtrl != 0 {
+				// Go to the end of the buffer.
+				// Not implemented until upstream implements it.
+				return nil
+			}
+		}
+
+		return event
+	})
+
+	if err := app.SetRoot(layout, true).SetFocus(textArea).Run(); err != nil {
 		return "", fmt.Errorf("editor failed: %v", err)
 	}
 
-	ed := m.(editor)
-	if ed.err != nil {
-		return "", ed.err
+	if canceled {
+		return "", CancelError
 	}
 
-	return ed.textarea.Value(), nil
+	return textArea.GetText(), nil
 }

@@ -9,7 +9,7 @@ It provides the following in a single binary:
 - [age](https://github.com/FiloSottile/age) public-key and password encryption
 - Git version control of the password store ([go-git](https://github.com/go-git/go-git))
 - A fuzzy finder similar to [fzf](https://github.com/junegunn/fzf) for choosing entries ([go-fuzzyfinder](https://github.com/ktr0731/go-fuzzyfinder))
-- A multiline text editor for editing encrypted data without writing it to disk (modified [bubbles/textarea](https://github.com/charmbracelet/bubbles))
+- A multiline text editor for editing encrypted data without writing it to disk ([tview](https://github.com/rivo/tview))
 
 ## Description
 
@@ -458,7 +458,8 @@ cap_mkdb /etc/login.conf
 ![Screenshot of the editor in a terminal showing a TOML entry.
 The TOML entry has a password "hunter2" and a test TOTP URL.](editor.png)
 
-The editor has the following key bindings:
+The editor uses a text area from the [tview](https://github.com/rivo/tview) library.
+It has the following key bindings:
 
 #### Session
 
@@ -467,34 +468,49 @@ The editor has the following key bindings:
 
 #### Navigation
 
-- **←**/**Ctrl+B**: Move cursor left by one character
-- **→**/**Ctrl+F**: Move cursor right by one character
-- **Alt+←**/**Alt+B**: Move cursor left by one word
-- **Alt+→**/**Alt+F**: Move cursor right by one word
-- **↑**/**Ctrl+P**: Move cursor up a line
-- **↓**/**Ctrl+N**: Move cursor down a line
-- **Home**/**Ctrl+A**: Move to line start
-- **End**/**Ctrl+E**: Move to line end
-- **Alt+<**/**Ctrl+Home**: Move to beginning of input
-- **Alt+>**/**Ctrl+End**: Move to end of input
+- **←**: Move left one character
+- **→**: Move right one character
+- **↑**: Move up one row
+- **↓**: Move down one row
+- **Home**/**Ctrl+A**: Move to the start of the line
+- **End**/**Ctrl+E**: Move to the end of the line
+- **PgUp**/**Ctrl+B**: Page up
+- **PgDn**/**Ctrl+F**: Page down
+- **Ctrl+←**/**Alt+B**: Move to the start of the word
+- **Ctrl+→**/**Alt-F**: Move to the end of the word
+<!-- - **Ctrl+Home**: Move to the start of the text -->
+<!-- - **Ctrl+End**: Move to the end of the text -->
 
 #### Editing
 
-- **Backspace**/**Ctrl+H**: Delete character before cursor
-- **Delete**/**Ctrl+D**: Delete character after cursor
-- **Alt+Backspace**/**Ctrl+W**: Delete word before cursor
-- **Alt+Delete**/**Alt+D**: Delete word after cursor
-- **Ctrl+K**: Delete all text after cursor
-- **Ctrl+U**: Delete all text before cursor
-- **Enter**/**Ctrl+M**: Insert newline
-- **Ctrl+V**: Paste from clipboard
+- **Enter**: Insert newline
+- **Tab**: Insert tab (`\t`)
+- **Backspace**/**Ctrl+H**: Delete the previous character
+- **Delete**: Delete the next character
+- **Alt+Backspace**: Delete the previous word
+- **Ctrl+W**: Delete back to the start of the word
+- **Ctrl+K**: Delete to the end of the line
+- **Ctrl+U**: Delete the entire line
 
-#### Text transformation
+#### Selection
 
-- **Alt+C**: Capitalize word forward
-- **Alt+L**: Lowercase word forward
-- **Alt+U**: Uppercase word forward
-- **Ctrl+T**: Transpose characters at cursor
+- **Shift** + navigation key: Extend selection
+- **Ctrl+L**: Select the entire text
+- Mouse drag: Select text
+- Left double-click: Select a word
+
+#### Clipboard
+
+The editor clipboard is synchronized with the system clipboard.
+
+- **Ctrl+Q**: Copy selected text
+- **Ctrl+X**: Cut selected text
+- **Ctrl+V**: Paste from the clipboard
+
+#### Undo/Redo
+
+- **Ctrl+Z**: Undo
+- **Ctrl+Y**: Redo
 
 ## License
 
