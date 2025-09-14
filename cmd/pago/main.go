@@ -360,8 +360,8 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 		return "", err
 	}
 
-	isToml := strings.HasPrefix(content, "# TOML")
-	if !isToml {
+	isTOML := strings.HasPrefix(content, "# TOML")
+	if !isTOML {
 		if key != "" {
 			return "", fmt.Errorf("entry %q is not a TOML entry; cannot use --key", name)
 		}
