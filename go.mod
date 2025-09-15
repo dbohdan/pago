@@ -16,7 +16,6 @@ require (
 	github.com/go-git/go-git/v5 v5.16.2
 	github.com/ktr0731/go-fuzzyfinder v0.9.0
 	github.com/pquerna/otp v1.5.0
-	github.com/stretchr/testify v1.10.0
 	github.com/tidwall/redcon v1.6.2
 	github.com/valkey-io/valkey-go v1.0.64
 	github.com/xlab/treeprint v1.2.0
@@ -39,7 +38,6 @@ require (
 	github.com/cloudflare/circl v1.6.1 // indirect
 	github.com/creack/pty v1.1.17 // indirect
 	github.com/cyphar/filepath-securejoin v0.4.1 // indirect
-	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/gdamore/encoding v1.0.1 // indirect
@@ -60,7 +58,6 @@ require (
 	github.com/nsf/termbox-go v1.1.1 // indirect
 	github.com/pjbgf/sha1cd v0.4.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
-	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/sergi/go-diff v1.4.0 // indirect
 	github.com/skeema/knownhosts v1.3.1 // indirect
@@ -73,5 +70,4 @@ require (
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

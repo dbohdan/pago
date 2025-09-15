@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	style "github.com/charmbracelet/lipgloss"
-	"golang.org/x/term"
 )
 
 type editor struct {
@@ -27,8 +26,6 @@ type cancelError struct{}
 const (
 	bannerNoSave    = "[ Ctrl+V: Paste ] [ Esc: Cancel ]"
 	bannerSave      = "[ Ctrl+D: Save ] [ Ctrl+V: Paste ] [ Esc: Cancel ]"
-	defaultHeight   = 15
-	defaultWidth    = 80
 	editorCharLimit = 1 << 16
 )
 
@@ -61,6 +58,10 @@ func (e editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 			return e, tea.Quit
 		}
+
+	case tea.WindowSizeMsg:
+		e.textarea.SetWidth(msg.Width)
+		e.textarea.SetHeight(msg.Height - 3) // Negative height works.
 	}
 
 	e.textarea, cmd = e.textarea.Update(msg)
@@ -73,7 +74,7 @@ func (e editor) View() string {
 		banner = bannerSave
 	}
 
-	return fmt.Sprintf("%s\n\n%s\n", banner, e.textarea.View())
+	return fmt.Sprintf("\n%s\n\n%s", e.textarea.View(), banner)
 }
 
 // Edit presents an editor with the given initial content and returns the edited text.
@@ -96,22 +97,12 @@ func Edit(initial string, save bool) (string, error) {
 	// Match blurred and focused styles.
 	ta.BlurredStyle = ta.FocusedStyle
 
-	width, height, err := term.GetSize(0)
-	if err == nil {
-		height /= 2
-	} else {
-		width = defaultWidth
-		height = defaultHeight
-	}
-	ta.SetWidth(width)
-	ta.SetHeight(height)
-
 	e := editor{
 		save:     save,
 		textarea: ta,
 	}
 
-	p := tea.NewProgram(e)
+	p := tea.NewProgram(e, tea.WithAltScreen())
 	m, err := p.Run()
 	if err != nil {
 		return "", fmt.Errorf("editor failed: %v", err)
