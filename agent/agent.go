@@ -233,6 +233,11 @@ func checkSocketSecurity(socket string) error {
 		return fmt.Errorf("failed to stat socket: %v", err)
 	}
 
+	// Check it's a Unix domain socket.
+	if (info.Mode() & os.ModeSocket) == 0 {
+		return fmt.Errorf("path is not a Unix domain socket")
+	}
+
 	// Check socket permissions.
 	if info.Mode().Perm() != pago.FilePerms {
 		return fmt.Errorf("incorrect socket permissions: %v", info.Mode().Perm())
