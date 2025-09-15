@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"syscall"
 
 	"dbohdan.com/pago"
 
@@ -54,8 +53,9 @@ func PickEntry(store string, query string) (string, error) {
 func SecureRead(prompt string) ([]byte, error) {
 	fmt.Fprint(os.Stderr, prompt)
 
-	if term.IsTerminal(int(syscall.Stdin)) {
-		password, err := term.ReadPassword(int(syscall.Stdin))
+	fd := int(os.Stdin.Fd())
+	if term.IsTerminal(fd) {
+		password, err := term.ReadPassword(fd)
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
 			return nil, err
