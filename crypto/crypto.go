@@ -169,7 +169,6 @@ func ParseIdentities(identityData string) ([]age.Identity, error) {
 		}
 
 		allIdentities = append(allIdentities, id)
-		fmt.Fprintf(os.Stderr, "allIdentities: %q\n", allIdentities)
 	}
 
 	if inPEMBlock {
