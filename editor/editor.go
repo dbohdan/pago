@@ -19,6 +19,7 @@ type editor struct {
 	err      error
 	save     bool
 	textarea textarea.Model
+	title    string
 }
 
 type cancelError struct{}
@@ -61,7 +62,7 @@ func (e editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		e.textarea.SetWidth(msg.Width)
-		e.textarea.SetHeight(msg.Height - 3) // Negative height works.
+		e.textarea.SetHeight(msg.Height - 2) // Negative height works.
 	}
 
 	e.textarea, cmd = e.textarea.Update(msg)
@@ -74,11 +75,11 @@ func (e editor) View() string {
 		banner = bannerSave
 	}
 
-	return fmt.Sprintf("\n%s\n\n%s", e.textarea.View(), banner)
+	return fmt.Sprintf("%q %s\n\n%s", e.title, banner, e.textarea.View())
 }
 
-// Edit presents an editor with the given initial content and returns the edited text.
-func Edit(initial string, save bool) (string, error) {
+// Edit presents an editor with a given title and initial content and returns the edited text.
+func Edit(title, initial string, save bool) (string, error) {
 	if len(initial) > editorCharLimit {
 		return "", fmt.Errorf("initial text too long")
 	}
@@ -99,6 +100,7 @@ func Edit(initial string, save bool) (string, error) {
 
 	e := editor{
 		save:     save,
+		title:    title,
 		textarea: ta,
 	}
 

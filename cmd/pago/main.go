@@ -599,7 +599,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
-	newContent, err := editor.Edit(content, cmd.Save)
+	newContent, err := editor.Edit(name, content, cmd.Save)
 	if err != nil && !errors.Is(err, editor.CancelError) {
 		return fmt.Errorf("editor failed: %v", err)
 	}
