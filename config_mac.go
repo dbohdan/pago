@@ -8,5 +8,5 @@
 package pago
 
 const (
-	DefaultClip = "copy"
+	DefaultClip = "pbcopy"
 )

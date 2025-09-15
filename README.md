@@ -416,7 +416,7 @@ cap_mkdb /etc/login.conf
   The default differs by platform:
     - Android: `termux-clipboard-set`
     - Linux and BSD: `xclip -in -selection clip`
-    - macOS: `copy`
+    - macOS: `pbcopy`
 - `PAGO_CONFIRM`:
   Whether pago should ask yes-no questions.
   `0` means pago will assume "yes".
