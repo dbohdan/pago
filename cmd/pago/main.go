@@ -153,7 +153,12 @@ func (cmd *AddCmd) Run(config *Config) error {
 		if generate {
 			password, err = generatePassword(cmd.Pattern, cmd.Length)
 		} else {
-			password, err = input.ReadNewPassword(config.Confirm)
+			var passwordBytes []byte
+			passwordBytes, err = input.ReadNewPassword(config.Confirm)
+			if err == nil {
+				defer pago.Zero(passwordBytes)
+				password = string(passwordBytes)
+			}
 		}
 	}
 	if err != nil {
@@ -298,19 +303,19 @@ func englishPlural(singular, plural string, count int) string {
 	return plural
 }
 
-func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string) (string, error) {
+func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string) ([]byte, error) {
 	if agentSocket == "" {
 		return crypto.DecryptEntry(identities, passwordStore, name)
 	}
 
 	file, err := pago.EntryFile(passwordStore, name)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	encryptedData, err := os.ReadFile(file)
 	if err != nil {
-		return "", fmt.Errorf("failed to read password file: %v", err)
+		return nil, fmt.Errorf("failed to read password file: %v", err)
 	}
 
 	if err := agent.Ping(agentSocket); err != nil {
@@ -318,17 +323,17 @@ func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemloc
 		// Attempt to start the agent.
 		identitiesText, err := crypto.DecryptIdentities(identities)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
 
 		if err := agent.StartProcess(agentExecutable, agentExpire, agentMemlock, agentSocket, identitiesText); err != nil {
-			return "", fmt.Errorf("failed to start agent: %v", err)
+			return nil, fmt.Errorf("failed to start agent: %v", err)
 		}
 	}
 
 	content, err := agent.Decrypt(agentSocket, encryptedData)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	return content, nil
@@ -355,10 +360,12 @@ func getOTP(otpURL string) (string, error) {
 }
 
 func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name, key string) (string, error) {
-	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
+	contentBytes, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
 	if err != nil {
 		return "", err
 	}
+	defer pago.Zero(contentBytes)
+	content := string(contentBytes)
 
 	isTOML := strings.HasPrefix(content, "# TOML")
 	if !isTOML {
@@ -574,7 +581,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 
 	if entryExists(config.Store, name) {
 		// Decrypt the existing entry.
-		content, err = decryptEntry(
+		contentBytes, err := decryptEntry(
 			config.AgentExecutable,
 			config.Expire,
 			config.Memlock,
@@ -586,6 +593,8 @@ func (cmd *EditCmd) Run(config *Config) error {
 		if err != nil {
 			return err
 		}
+
+		content = string(contentBytes)
 	} else if !cmd.Force {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
@@ -708,12 +717,13 @@ func (cmd *InitCmd) Run(config *Config) error {
 	var buf bytes.Buffer
 	armorWriter := armor.NewWriter(&buf)
 
-	password, err := input.ReadNewPassword(config.Confirm)
+	passwordBytes, err := input.ReadNewPassword(config.Confirm)
 	if err != nil {
 		return fmt.Errorf("failed to read password: %v", err)
 	}
+	defer pago.Zero(passwordBytes)
 
-	recip, err := age.NewScryptRecipient(password)
+	recip, err := age.NewScryptRecipient(string(passwordBytes))
 	if err != nil {
 		return fmt.Errorf("failed to create scrypt recipient: %w", err)
 	}
@@ -942,15 +952,16 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 		return err
 	}
 
-	newPassword, err := input.ReadNewPassword(config.Confirm)
+	newPasswordBytes, err := input.ReadNewPassword(config.Confirm)
 	if err != nil {
 		return err
 	}
+	defer pago.Zero(newPasswordBytes)
 
 	var buf bytes.Buffer
 	armorWriter := armor.NewWriter(&buf)
 
-	recip, err := age.NewScryptRecipient(newPassword)
+	recip, err := age.NewScryptRecipient(string(newPasswordBytes))
 	if err != nil {
 		return fmt.Errorf("failed to create scrypt recipient: %w", err)
 	}

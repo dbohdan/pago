@@ -175,22 +175,22 @@ func Run(socket string, expire time.Duration) error {
 	return err
 }
 
-func Message(socket string, args ...string) (string, error) {
+func Message(socket string, args ...string) ([]byte, error) {
 	// Check socket security.
 	if err := checkSocketSecurity(socket); err != nil {
-		return "", fmt.Errorf("socket security check failed: %v", err)
+		return nil, fmt.Errorf("socket security check failed: %v", err)
 	}
 
 	// Connect to the server.
 	opts, err := valkey.ParseURL("unix://" + socket)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse socket URL: %v", err)
+		return nil, fmt.Errorf("failed to parse socket URL: %v", err)
 	}
 	opts.DisableCache = true
 
 	client, err := valkey.NewClient(opts)
 	if err != nil {
-		return "", fmt.Errorf("failed to create Valkey client: %v", err)
+		return nil, fmt.Errorf("failed to create Valkey client: %v", err)
 	}
 	defer client.Close()
 
@@ -198,24 +198,24 @@ func Message(socket string, args ...string) (string, error) {
 
 	// Try a PING to verify the connection.
 	if err := client.Do(ctx, client.B().Ping().Build()).Error(); err != nil {
-		return "", fmt.Errorf("failed to ping agent: %v", err)
+		return nil, fmt.Errorf("failed to ping agent: %v", err)
 	}
 	if len(args) == 0 {
-		return "", nil
+		return nil, nil
 	}
 
 	// Send the command.
 	cmd := client.Do(ctx, client.B().Arbitrary(args...).Build())
 	if err := cmd.Error(); err != nil {
-		return "", fmt.Errorf("command failed: %v", err)
+		return nil, fmt.Errorf("command failed: %v", err)
 	}
 
 	result, err := cmd.ToString()
 	if err != nil {
-		return "", fmt.Errorf("failed to get result: %v", err)
+		return nil, fmt.Errorf("failed to get result: %v", err)
 	}
 
-	return string(result), nil
+	return []byte(result), nil
 }
 
 func Ping(socket string) error {
@@ -223,7 +223,7 @@ func Ping(socket string) error {
 	return err
 }
 
-func Decrypt(socket string, data []byte) (string, error) {
+func Decrypt(socket string, data []byte) ([]byte, error) {
 	return Message(socket, "DECRYPT", valkey.BinaryString(data))
 }
 

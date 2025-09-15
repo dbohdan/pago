@@ -184,13 +184,14 @@ func DecryptIdentities(identitiesPath string) (string, error) {
 		return "", fmt.Errorf("failed to read identities file: %v", err)
 	}
 
-	password, err := input.SecureRead("Enter password to unlock identities: ")
+	passwordBytes, err := input.SecureRead("Enter password to unlock identities: ")
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %v", err)
 	}
+	defer pago.Zero(passwordBytes)
 
 	// Create a passphrase-based identity and decrypt the private keys with it.
-	identity, err := age.NewScryptIdentity(password)
+	identity, err := age.NewScryptIdentity(string(passwordBytes))
 	if err != nil {
 		return "", fmt.Errorf("failed to create password-based identity: %v", err)
 	}
@@ -208,38 +209,38 @@ func DecryptIdentities(identitiesPath string) (string, error) {
 	return string(decrypted), nil
 }
 
-func DecryptEntry(identities, passwordStore, name string) (string, error) {
+func DecryptEntry(identities, passwordStore, name string) ([]byte, error) {
 	file, err := pago.EntryFile(passwordStore, name)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	encryptedData, err := os.ReadFile(file)
 	if err != nil {
-		return "", fmt.Errorf("failed to read password file: %v", err)
+		return nil, fmt.Errorf("failed to read password file: %v", err)
 	}
 
 	identitiesText, err := DecryptIdentities(identities)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	ids, err := ParseIdentities(identitiesText)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse identities: %v", err)
+		return nil, fmt.Errorf("failed to parse identities: %v", err)
 	}
 
 	r, err := WrapDecrypt(bytes.NewReader(encryptedData), ids...)
 	if err != nil {
-		return "", fmt.Errorf("failed to decrypt: %v", err)
+		return nil, fmt.Errorf("failed to decrypt: %v", err)
 	}
 
 	content, err := io.ReadAll(r)
 	if err != nil {
-		return "", fmt.Errorf("failed to read decrypted content: %v", err)
+		return nil, fmt.Errorf("failed to read decrypted content: %v", err)
 	}
 
-	return string(content), nil
+	return content, nil
 }
 
 func EntryFile(passwordStore, name string) (string, error) {

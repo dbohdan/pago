@@ -58,6 +58,14 @@ func ExitWithError(format string, value any) {
 	os.Exit(1)
 }
 
+// Zero zeroes-out a byte slice.
+// This is used for passwords.
+func Zero(b []byte) {
+	for i := range b {
+		b[i] = 0
+	}
+}
+
 func ListFiles(root string, transform func(name string, info os.FileInfo) (bool, string)) ([]string, error) {
 	list := []string{}
 
