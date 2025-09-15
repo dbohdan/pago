@@ -23,6 +23,7 @@ import (
 	"filippo.io/age"
 	"github.com/tidwall/redcon"
 	"github.com/valkey-io/valkey-go"
+	"golang.org/x/sys/unix"
 )
 
 func StartProcess(executable string, expire time.Duration, memlock bool, socket, identitiesText string) error {
@@ -73,6 +74,10 @@ func Run(socket string, expire time.Duration) error {
 	}
 
 	os.Remove(socket)
+
+	// Set umask to ensure the socket is created with correct permissions.
+	oldUmask := unix.Umask(0o177)
+	defer unix.Umask(oldUmask)
 
 	var timer *time.Timer
 	identities := []age.Identity{}
@@ -156,19 +161,7 @@ func Run(socket string, expire time.Duration) error {
 		})
 	}
 
-	errc := make(chan error)
-
-	go func() {
-		if err := <-errc; err != nil {
-			return
-		}
-
-		if err := os.Chmod(socket, pago.FilePerms); err != nil {
-			pago.ExitWithError("failed to set permissions on agent socket: %v", err)
-		}
-	}()
-
-	err := srv.ListenServeAndSignal(errc)
+	err := srv.ListenServeAndSignal(nil)
 	if err != nil && strings.Contains(err.Error(), "server closed") {
 		return nil
 	}
