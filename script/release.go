@@ -100,6 +100,10 @@ func buildAll() error {
 			return fmt.Errorf("failed to create ZIP archive: %w", err)
 		}
 
+		if err := appendChecksum(checksumFilePath, zipPath); err != nil {
+			return err
+		}
+
 		if err := os.RemoveAll(targetDir); err != nil {
 			return fmt.Errorf("failed to remove target directory after archive creation: %w", err)
 		}
