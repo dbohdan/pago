@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"dbohdan.com/pago/textarea"
 	"github.com/charmbracelet/bubbles/cursor"
-	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	style "github.com/charmbracelet/lipgloss"
 )
@@ -87,8 +87,9 @@ func Edit(title, initial string, save bool) (string, error) {
 	ta := textarea.New()
 	ta.CharLimit = editorCharLimit
 	ta.Cursor.SetMode(cursor.CursorStatic)
-	ta.ShowLineNumbers = false
 	ta.SetValue(initial)
+	ta.SetWrapMode(textarea.RuneWrap)
+	ta.ShowLineNumbers = false
 	ta.Focus()
 
 	// Remove cursor line highlighting.
