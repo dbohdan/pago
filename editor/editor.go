@@ -87,8 +87,9 @@ func Edit(title, initial string, save bool) (string, error) {
 	ta := textarea.New()
 	ta.CharLimit = editorCharLimit
 	ta.Cursor.SetMode(cursor.CursorStatic)
-	ta.ShowLineNumbers = false
 	ta.SetValue(initial)
+	ta.SetWrapMode(textarea.RuneWrap)
+	ta.ShowLineNumbers = false
 	ta.Focus()
 
 	// Remove cursor line highlighting.
