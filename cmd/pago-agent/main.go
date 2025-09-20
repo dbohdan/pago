@@ -28,7 +28,7 @@ type CLI struct {
 }
 
 type RunCmd struct {
-	Expire time.Duration `short:"e" help:"Agent expiration time (Go duration, 0 to disable)"`
+	Expire time.Duration `short:"e" default:"0" help:"Agent expiration time (Go duration, 0 to disable)"`
 }
 
 func (cmd *RunCmd) Run(cli *CLI) error {

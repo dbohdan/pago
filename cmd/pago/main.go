@@ -46,7 +46,7 @@ type CLI struct {
 	AgentExecutable string        `short:"a" name:"agent" env:"${AgentEnv}" default:"${DefaultAgent}" help:"Agent executable (${env})"`
 	Confirm         bool          `env:"${ConfirmEnv}" default:"true" negatable:"" help:"Enter passwords twice (${env})"`
 	Dir             string        `short:"d" env:"${DataDirEnv}" default:"${DefaultDataDir}" help:"Store location (${env})"`
-	Expire          time.Duration `short:"e" env:"${ExpireEnv}" help:"Agent expiration time (Go duration, 0 to disable, ${env})"`
+	Expire          time.Duration `short:"e" env:"${ExpireEnv}" default:"0" help:"Agent expiration time (Go duration, 0 to disable, ${env})"`
 	Git             bool          `env:"${GitEnv}" default:"true" negatable:"" help:"Commit to Git (${env})"`
 	GitEmail        string        `env:"${GitEmailEnv}" default:"${GitEmail}" help:"Email for Git commits (${env})"`
 	GitName         string        `env:"${GitNameEnv}" default:"${GitName}" help:"Name for Git commits (${env})"`
