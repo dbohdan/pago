@@ -458,12 +458,12 @@ cap_mkdb /etc/login.conf
 ![Screenshot of the editor in a terminal showing a TOML entry.
 The TOML entry has a password "hunter2" and a test TOTP URL.](editor.png)
 
-The editor includes the following key bindings.
+The editor has the following key bindings:
 
 #### Session
 
+- **Ctrl+C**: Exit without saving
 - **Ctrl+D**: Save and exit
-- **Esc**/**Ctrl+C**: Exit without saving
 
 #### Navigation
 

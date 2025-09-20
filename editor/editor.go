@@ -25,8 +25,8 @@ type editor struct {
 type cancelError struct{}
 
 const (
-	bannerNoSave    = "[ Ctrl+V: Paste ] [ Esc: Cancel ]"
-	bannerSave      = "[ Ctrl+D: Save ] [ Ctrl+V: Paste ] [ Esc: Cancel ]"
+	bannerNoSave    = "[ Ctrl+V: Paste ] [ Ctrl+C: Cancel ]"
+	bannerSave      = "[ Ctrl+D: Save ] [ Ctrl+V: Paste ] [ Ctrl+C: Cancel ]"
 	editorCharLimit = 1 << 16
 )
 
@@ -48,7 +48,7 @@ func (e editor) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.Type {
 
-		case tea.KeyEsc, tea.KeyCtrlC:
+		case tea.KeyCtrlC:
 			e.err = CancelError
 			return e, tea.Quit
 
