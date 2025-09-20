@@ -108,7 +108,12 @@ type AddCmd struct {
 }
 
 func printRepr(value any) {
-	valueRepr := repr.String(value, repr.Indent("\t"), repr.OmitEmpty(false))
+	valueRepr := repr.String(
+		value,
+		repr.Indent("\t"),
+		repr.OmitEmpty(false),
+		repr.OmitZero(false),
+	)
 	fmt.Fprintf(os.Stderr, "%s\n\n", valueRepr)
 }
 
