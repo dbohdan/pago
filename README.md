@@ -56,7 +56,7 @@ The following is the late-2024 shortlist of password managers I compiled before 
 It includes explanations for why I didn't adopt them.
 
 First, I needed the identities encrypted at rest and usable without reentering the password.
-This ruled out [passage](https://github.com/FiloSottile/passage), which had no an agent, and [pa](https://github.com/biox/pa), which didn't support encryption for the identities file.
+This ruled out [passage](https://github.com/FiloSottile/passage), which had no agent, and [pa](https://github.com/biox/pa), which didn't support encryption for the identities file.
 [kbs2](https://github.com/woodruffw/kbs2) didn't integrate with Git.
 [seniorpw](https://gitlab.com/retirement-home/seniorpw) matched all of my criteria and was the closest to `pass`.
 It is what I would most likely be using if I didn't decide to develop my own.
@@ -122,14 +122,14 @@ On Linux with glibc, you normally have `/dev/shm/` available as temporary in-mem
 You can have multiple recipients.
 
 ```shell
-# Repeat for every SSH key.
+# Repeat for every SSH public key.
 cat ~/.ssh/id_ed25519.pub >> ~/.local/share/pago/store/.age-recipients
 
 # Re-encrypt the password entries to the new recipients.
 pago rekey
 ```
 
-2. Add the corresponding SSH _private_ key to the encrypted identities file.
+2. Add the corresponding SSH _private_ keys to the encrypted identities file.
 This is not automated and requires decrypting the file manually using the `age` command.
 We are going to use a directory in `/dev/shm/` in this example.
 
@@ -137,6 +137,8 @@ We are going to use a directory in `/dev/shm/` in this example.
 # Edit the identities file.
 mkdir -p "/dev/shm/pago-$USER-temp/"
 age -d -o "/dev/shm/pago-$USER-temp/identities" ~/.local/share/pago/identities
+
+# Repeat for every SSH private key.
 # Ensure a line break.
 echo >> "/dev/shm/pago-$USER-temp/identities"
 cat ~/.ssh/id_ed25519 >> "/dev/shm/pago-$USER-temp/identities"
@@ -184,7 +186,7 @@ pago clip -t 20 foo/bar
 # List all entries organized in a tree.
 pago show
 
-# List entires with a name that matches a regular expression.
+# List entries with a name that matches a regular expression.
 pago find fo
 
 # Select an entry interactively using a fuzzy finder.
@@ -353,7 +355,7 @@ pago agent stop
 
 ### Memory locking
 
-pago-agent defaults to [locking the process memory](https://pubs.opengroup.org/onlinepubs/9699919799/functions/mlock.html) to prevent secrets from being written to swap.
+pago-agent defaults to [locking the process memory](https://pubs.opengroup.org/onlinepubs/9699919799/functions/mlockall.html) to prevent secrets from being written to swap.
 Secrets can be recovered from unencrypted swap that was not erased at system shutdown.
 
 pago-agent uses up to 100 MiB of memory on systems where it has been tested.
@@ -453,7 +455,7 @@ cap_mkdb /etc/login.conf
 
 ### Interactive editor
 
-The editor for the `edit` command editor includes the default [bubbles/textarea key bindings](https://github.com/charmbracelet/bubbles/blob/8624776d4572078ae6ff098d454c719047f9eb83/textarea/textarea.go#L71).
+The editor includes the default [bubbles/textarea key bindings](https://github.com/charmbracelet/bubbles/blob/8624776d4572078ae6ff098d454c719047f9eb83/textarea/textarea.go#L71).
 
 #### Session
 
