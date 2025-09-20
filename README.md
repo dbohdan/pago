@@ -9,7 +9,7 @@ It provides the following in a single binary:
 - [age](https://github.com/FiloSottile/age) public-key and password encryption
 - Git version control of the password store ([go-git](https://github.com/go-git/go-git))
 - A fuzzy finder similar to [fzf](https://github.com/junegunn/fzf) for choosing entries ([go-fuzzyfinder](https://github.com/ktr0731/go-fuzzyfinder))
-- A multiline text editor for editing encrypted data without writing it to disk ([bubbles/textarea](https://github.com/charmbracelet/bubbles))
+- A multiline text editor for editing encrypted data without writing it to disk (modified [bubbles/textarea](https://github.com/charmbracelet/bubbles))
 
 ## Description
 
@@ -455,7 +455,10 @@ cap_mkdb /etc/login.conf
 
 ### Interactive editor
 
-The editor includes the default [bubbles/textarea key bindings](https://github.com/charmbracelet/bubbles/blob/8624776d4572078ae6ff098d454c719047f9eb83/textarea/textarea.go#L71).
+![Screenshot of the editor in a terminal showing a TOML entry.
+The TOML entry has a password "hunter2" and a test TOTP URL.](editor.png)
+
+The editor includes the following key bindings.
 
 #### Session
 
