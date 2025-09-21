@@ -7,7 +7,6 @@ package editor
 
 import (
 	"fmt"
-	"strings"
 
 	"dbohdan.com/pago/textarea"
 	"github.com/charmbracelet/bubbles/cursor"
@@ -116,5 +115,5 @@ func Edit(title, initial string, save bool) (string, error) {
 		return "", ed.err
 	}
 
-	return strings.TrimSpace(ed.textarea.Value()), nil
+	return ed.textarea.Value(), nil
 }
