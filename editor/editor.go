@@ -9,8 +9,8 @@ import (
 	"fmt"
 	"strings"
 
+	"dbohdan.com/pago/textarea"
 	"github.com/charmbracelet/bubbles/cursor"
-	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	style "github.com/charmbracelet/lipgloss"
 )
