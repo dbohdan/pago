@@ -559,6 +559,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 
 type EditCmd struct {
 	Force bool   `short:"f" help:"Create the entry if it doesn't exist"`
+	Mouse bool   `env:"${MouseEnv}" default:"true" negatable:"" help:"Enable mouse support in the editor (${env})"`
 	Name  string `arg:"" optional:"" help:"Name of the password entry"`
 	Save  bool   `default:"true" negatable:"" help:"Allow saving edited entry"`
 	Pick  bool   `short:"p" help:"Pick entry using fuzzy finder"`
@@ -604,7 +605,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
-	newContent, err := editor.Edit(name, content, cmd.Save)
+	newContent, err := editor.Edit(name, content, cmd.Save, cmd.Mouse)
 	if err != nil && !errors.Is(err, editor.CancelError) {
 		return fmt.Errorf("editor failed: %v", err)
 	}
@@ -1183,6 +1184,7 @@ func main() {
 			"GitNameEnv":  pago.GitNameEnv,
 			"MemlockEnv":  pago.MemlockEnv,
 			"ExpireEnv":   pago.ExpireEnv,
+			"MouseEnv":    pago.MouseEnv,
 			"SocketEnv":   pago.SocketEnv,
 			"TimeoutEnv":  pago.TimeoutEnv,
 			"LengthEnv":   pago.LengthEnv,

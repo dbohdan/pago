@@ -22,7 +22,7 @@ const (
 	ExitMemlockError = 3
 	FilePerms        = 0o600
 	NameInvalidChars = `[\n]`
-	Version          = "0.20.1"
+	Version          = "0.21.0"
 	WaitForSocket    = 3 * time.Second
 
 	DefaultAgent           = "pago-agent"
@@ -40,6 +40,7 @@ const (
 	GitEnv      = "PAGO_GIT"
 	GitNameEnv  = "GIT_AUTHOR_NAME"
 	LengthEnv   = "PAGO_LENGTH"
+	MouseEnv    = "PAGO_MOUSE"
 	MemlockEnv  = "PAGO_MEMLOCK"
 	PatternEnv  = "PAGO_PATTERN"
 	SocketEnv   = "PAGO_SOCK"

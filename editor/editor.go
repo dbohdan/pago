@@ -29,7 +29,7 @@ func (e *cancelError) Error() string {
 }
 
 // Edit presents an editor with a given initial content and returns the edited text.
-func Edit(title, initial string, save bool) (string, error) {
+func Edit(title, initial string, save, mouse bool) (string, error) {
 	if len(initial) > editorCharLimit {
 		return "", fmt.Errorf("initial text too large: over %s", humanize.IBytesN(editorCharLimit, 1))
 	}
@@ -40,7 +40,7 @@ func Edit(title, initial string, save bool) (string, error) {
 	selectedStyle := tcell.StyleDefault.Reverse(true)
 
 	app := tview.NewApplication().
-		EnableMouse(true).
+		EnableMouse(mouse).
 		EnablePaste(true)
 
 	textArea := tview.NewTextArea().

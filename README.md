@@ -204,6 +204,11 @@ pago edit foo/bar
 
 # Create a password if it doesn't exist.
 pago edit foo/new -f
+
+# Edit without mouse support.
+# This makes Termux automatically display the virtual keyboard
+# when you tap the terminal.
+pago edit --no-mouse foo/bar
 ```
 
 ### Generate passwords
@@ -436,6 +441,9 @@ cap_mkdb /etc/login.conf
   The default length of random passwords
 - `PAGO_MEMLOCK`:
   Whether the agent should lock its memory using [mlockall(2)](https://pubs.opengroup.org/onlinepubs/9799919799/functions/mlockall.html) to prevent secrets from being written to swap.
+  `0` to disable.
+- `PAGO_MOUSE`:
+  Whether to enable mouse support in the interactive editor.
   `0` to disable.
 - `PAGO_PATTERN`:
   The default character pattern (regular expression) for random passwords
