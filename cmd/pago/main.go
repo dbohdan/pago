@@ -98,13 +98,12 @@ const (
 type AddCmd struct {
 	Name string `arg:"" help:"Name of the password entry"`
 
-	Length  int    `short:"l" env:"${LengthEnv}" default:"${DefaultLength}" help:"Password length (${env})"`
-	Pattern string `short:"p" env:"${PatternEnv}" default:"${DefaultPattern}" help:"Password pattern (regular expression, ${env})"`
-
-	Force     bool `short:"f" help:"Overwrite existing entry"`
-	Input     bool `short:"i" help:"Input the password manually" xor:"mode"`
-	Multiline bool `short:"m" help:"Read from stdin until EOF" xor:"mode"`
-	Random    bool `short:"r" help:"Generate a random password" xor:"mode"`
+	Force     bool   `short:"f" help:"Overwrite existing entry"`
+	Input     bool   `short:"i" help:"Input the password manually" xor:"mode"`
+	Length    int    `short:"l" env:"${LengthEnv}" default:"${DefaultLength}" help:"Password length (${env})"`
+	Multiline bool   `short:"m" help:"Read from stdin until EOF" xor:"mode"`
+	Pattern   string `short:"p" env:"${PatternEnv}" default:"${DefaultPattern}" help:"Password pattern (regular expression, ${env})"`
+	Random    bool   `short:"r" help:"Generate a random password" xor:"mode"`
 }
 
 func printRepr(value any) {
@@ -277,9 +276,9 @@ func (cmd *StopCmd) Run(config *Config) error {
 
 type ClipCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
-	Key  string `short:"k" help:"Retrieve a key from a TOML entry"`
 
 	Command string `short:"c" env:"${ClipEnv}" default:"${DefaultClip}" help:"Command for copying text from stdin to clipboard (${env})"`
+	Key     string `short:"k" help:"Retrieve a key from a TOML entry"`
 	Pick    bool   `short:"p" help:"Pick entry using fuzzy finder"`
 	Timeout int    `short:"t" env:"${TimeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable, ${env})"`
 }
@@ -558,11 +557,12 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 }
 
 type EditCmd struct {
-	Force bool   `short:"f" help:"Create the entry if it doesn't exist"`
-	Mouse bool   `env:"${MouseEnv}" default:"true" negatable:"" help:"Enable mouse support in the editor (${env})"`
-	Name  string `arg:"" optional:"" help:"Name of the password entry"`
-	Save  bool   `default:"true" negatable:"" help:"Allow saving edited entry"`
-	Pick  bool   `short:"p" help:"Pick entry using fuzzy finder"`
+	Name string `arg:"" optional:"" help:"Name of the password entry"`
+
+	Force bool `short:"f" help:"Create the entry if it doesn't exist"`
+	Mouse bool `env:"${MouseEnv}" default:"true" negatable:"" help:"Enable mouse support in the editor (${env})"`
+	Pick  bool `short:"p" help:"Pick entry using fuzzy finder"`
+	Save  bool `default:"true" negatable:"" help:"Allow saving edited entry"`
 }
 
 func (cmd *EditCmd) Run(config *Config) error {
@@ -798,7 +798,8 @@ func (cmd *KeyCmd) Run(config *Config) error {
 
 type PickCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
-	Key  string `short:"k" help:"Retrieve a key from a TOML entry"`
+
+	Key string `short:"k" help:"Retrieve a key from a TOML entry"`
 }
 
 func (cmd *PickCmd) Run(config *Config) error {
@@ -999,6 +1000,7 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 
 type ShowCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
+
 	Key  string `short:"k" help:"Retrieve a key from a TOML entry"`
 	Pick bool   `short:"p" help:"Pick entry using fuzzy finder"`
 }
