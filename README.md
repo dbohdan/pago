@@ -442,14 +442,15 @@ cap_mkdb /etc/login.conf
 - `PAGO_SOCK`:
   The agent socket path.
   The default path is determined by trying candidate paths until the parent directory of the pago directory exists.
+  `${FOO:-default value}` with `FOO` in capital letters indicates an environment variable; `${foo}` indicates an internal pago variable.
     - Linux and BSD:
-      - `$XDG_RUNTIME_DIR/pago/socket`
-      - `/var/run/xdg/$USER/pago/socket` on FreeBSD only
-      - `/run/user/$UID/pago/socket`
-      - `/var/run/user/$UID/pago/socket`
-      - `${TMPDIR:-/tmp}/pago-${USER}/socket`
+      - `${XDG_RUNTIME_DIR}/pago/socket`
+      - `/var/run/xdg/${username}/pago/socket` on FreeBSD only
+      - `/run/user/${uid}/pago/socket`
+      - `/var/run/user/${uid}/pago/socket`
+      - `${TMPDIR:-/tmp}/pago-${username}@${hostname}/socket`
     - macOS:
-      - `${TMPDIR:-/tmp}/pago-${USER}/socket`
+      - `${TMPDIR:-/tmp}/pago-${username}@${hostname}/socket`
 - `PAGO_TIMEOUT`:
   The default timeout to clear the clipboard
 
