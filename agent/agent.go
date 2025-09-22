@@ -169,8 +169,13 @@ func Run(socket string, expire time.Duration) error {
 }
 
 func Message(socket string, args ...string) ([]byte, error) {
+	socket, err := filepath.Abs(socket)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve socket path: %v", err)
+	}
+
 	// Check socket security.
-	if err := checkSocketSecurity(socket); err != nil {
+	if err = checkSocketSecurity(socket); err != nil {
 		return nil, fmt.Errorf("socket security check failed: %v", err)
 	}
 
