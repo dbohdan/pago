@@ -5,7 +5,7 @@
 > Using pago carries a greater risk of bugs, security vulnerabilities, and data loss than using mature software.
 
 **pago** is a command-line password manager.
-It provides the following in a single binary:
+It has the following built in:
 - [age](https://github.com/FiloSottile/age) public-key and password encryption
 - Git version control of the password store ([go-git](https://github.com/go-git/go-git))
 - A fuzzy finder similar to [fzf](https://github.com/junegunn/fzf) for choosing entries ([go-fuzzyfinder](https://github.com/ktr0731/go-fuzzyfinder))
@@ -420,8 +420,8 @@ cap_mkdb /etc/login.conf
     - Linux and BSD: `xclip -in -selection clip`
     - macOS: `pbcopy`
 - `PAGO_CONFIRM`:
-  Whether pago should ask yes-no questions.
-  `0` means pago will assume "yes".
+  Whether to ask for a new password twice for confirmation.
+  `0` to disable.
 - `PAGO_DIR`:
   The pago data directory location.
   Defaults to:
