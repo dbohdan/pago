@@ -48,9 +48,12 @@ const (
 )
 
 var (
+	// DefaultDataDir is the default directory for pago data, following XDG Base Directory Specification.
 	DefaultDataDir = filepath.Join(xdg.DataHome, "pago")
 )
 
+// DefaultSocket returns the default agent socket path based on the current user and operating system.
+// It attempts to use XDG_RUNTIME_DIR or other common runtime directories, falling back to os.TempDir().
 func DefaultSocket() (string, error) {
 	currentUser, err := user.Current()
 	if err != nil {
@@ -89,7 +92,7 @@ func DefaultSocket() (string, error) {
 		}
 	}
 
-	// If no candidate exists, fall back to the temporary directory.
+	// If no suitable candidate exists, fall back to the temporary directory.
 	if runtimeDir == "" {
 		runtimeDir = os.TempDir()
 		subdir = "pago-" + currentUser.Username + "@" + hostname

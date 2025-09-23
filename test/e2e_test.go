@@ -31,6 +31,7 @@ const (
 	password         = "test"
 )
 
+// runCommandEnv executes the pago command with custom environment variables.
 func runCommandEnv(env []string, args ...string) (string, string, error) {
 	cmd := exec.Command(commandPago, args...)
 	cmd.Env = append(os.Environ(), env...)
@@ -44,10 +45,13 @@ func runCommandEnv(env []string, args ...string) (string, string, error) {
 	return stdout.String(), stderr.String(), err
 }
 
+// runCommand executes the pago command with default environment variables.
 func runCommand(args ...string) (string, string, error) {
 	return runCommandEnv([]string{}, args...)
 }
 
+// withPagoDir sets up a temporary pago directory, initializes it,
+// runs the provided test function, and then cleans up the directory.
 func withPagoDir(test func(dataDir string) (string, error)) (string, error) {
 	tempDir, err := os.MkdirTemp("", "pago-test-")
 	if err != nil {
@@ -89,6 +93,7 @@ func withPagoDir(test func(dataDir string) (string, error)) (string, error) {
 	return test(tempDir)
 }
 
+// createFakeEntry creates an empty .age file in the test store for testing purposes.
 func createFakeEntry(dataDir, name string) error {
 	file, err := os.OpenFile(filepath.Join(dataDir, "store", name+".age"), os.O_CREATE|os.O_RDONLY, pago.FilePerms)
 	if err != nil {
@@ -322,6 +327,7 @@ func TestGenerate(t *testing.T) {
 	}
 }
 
+// getSSHIdentity reads and parses a test SSH private key to return an age.Identity.
 func getSSHIdentity(t *testing.T) age.Identity {
 	t.Helper()
 
@@ -757,10 +763,10 @@ foo = "secret"
 			{"toml", "bar", "5", false},
 			{"toml", "phi", "1.68", false},
 			{"toml", "baz", "[1, 2, 3, true, false]", false},
-			{"toml", "quux", "", true},
+			{"toml", "qux", "", true}, // Tables cannot be retrieved.
 			{"toml", "nonexistent", "", true},
 			{"toml-default", "", "secret", false},
-			{"not-toml", "foo", "", true},
+			{"not-toml", "foo", "", true}, // Cannot use "--key" on non-TOML entries.
 		}
 
 		for _, tc := range testCases {

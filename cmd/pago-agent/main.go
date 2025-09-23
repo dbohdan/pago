@@ -30,6 +30,7 @@ type CLI struct {
 
 type RunCmd struct{}
 
+// Run executes the agent process.
 func (cmd *RunCmd) Run(cli *CLI) error {
 	if cli.Memlock {
 		if err := LockMemory(); err != nil {
@@ -48,6 +49,7 @@ func (cmd *RunCmd) Run(cli *CLI) error {
 
 type VersionCmd struct{}
 
+// Run prints the current version of the agent.
 func (cmd *VersionCmd) Run(cli *CLI) error {
 	fmt.Println(pago.Version)
 	return nil

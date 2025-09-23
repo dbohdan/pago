@@ -14,6 +14,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
+// InitRepo initializes a new Git repository at the specified directory.
 func InitRepo(repoDir string) error {
 	_, err := gogit.PlainInit(repoDir, false)
 	if err != nil {
@@ -23,6 +24,7 @@ func InitRepo(repoDir string) error {
 	return nil
 }
 
+// Commit stages the specified files and creates a new commit in the Git repository.
 func Commit(repoDir, authorName, authorEmail, message string, add []string) error {
 	repo, err := gogit.PlainOpen(repoDir)
 	if err != nil {

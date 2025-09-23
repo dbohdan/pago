@@ -26,6 +26,8 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// StartProcess launches the agent executable in the background.
+// It waits for the agent to become available and then sends it the identities.
 func StartProcess(executable string, expire time.Duration, memlock bool, socket, identitiesText string) error {
 	memlockFlag := "--memlock"
 	if !memlock {
@@ -63,6 +65,8 @@ func StartProcess(executable string, expire time.Duration, memlock bool, socket,
 	return err
 }
 
+// Run starts the agent server, listening for commands on the specified Unix socket.
+// It handles decryption requests and manages identities.
 func Run(socket string, expire time.Duration) error {
 	if err := Ping(socket); err == nil {
 		return fmt.Errorf("found agent responding on socket")
@@ -73,9 +77,10 @@ func Run(socket string, expire time.Duration) error {
 		return fmt.Errorf("failed to create socket directory: %v", err)
 	}
 
+	// Remove any stale socket file before creating a new one.
 	os.Remove(socket)
 
-	// Set umask to ensure the socket is created with correct permissions.
+	// Set umask to ensure the socket is created with correct permissions (0o600).
 	oldUmask := unix.Umask(0o177)
 	defer unix.Umask(oldUmask)
 
@@ -216,32 +221,35 @@ func Message(socket string, args ...string) ([]byte, error) {
 	return []byte(result), nil
 }
 
+// Ping sends a PING command to the agent to check if it's running and responsive.
 func Ping(socket string) error {
 	_, err := Message(socket)
 	return err
 }
 
+// Decrypt sends a DECRYPT command to the agent to decrypt the provided data.
 func Decrypt(socket string, data []byte) ([]byte, error) {
 	return Message(socket, "DECRYPT", valkey.BinaryString(data))
 }
 
+// checkSocketSecurity verifies that the Unix socket has the correct permissions and ownership.
 func checkSocketSecurity(socket string) error {
 	info, err := os.Stat(socket)
 	if err != nil {
 		return fmt.Errorf("failed to stat socket: %v", err)
 	}
 
-	// Check it's a Unix domain socket.
+	// Check if it's actually a Unix domain socket.
 	if (info.Mode() & os.ModeSocket) == 0 {
 		return fmt.Errorf("path is not a Unix domain socket")
 	}
 
-	// Check socket permissions.
+	// Check socket permissions (must be 0o600).
 	if info.Mode().Perm() != pago.FilePerms {
 		return fmt.Errorf("incorrect socket permissions: %v", info.Mode().Perm())
 	}
 
-	// Check socket ownership.
+	// Check socket ownership (must be owned by the current user).
 	stat, ok := info.Sys().(*syscall.Stat_t)
 	if !ok {
 		return fmt.Errorf("failed to get socket system info")

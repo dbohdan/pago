@@ -23,7 +23,8 @@ import (
 	"filippo.io/age/armor"
 )
 
-// Parse the entire text of an age recipients file.
+// ParseRecipients parses the entire text of an recipients file,
+// supporting both X25519 and SSH public key formats.
 func ParseRecipients(contents string) ([]age.Recipient, error) {
 	var recips []age.Recipient
 
@@ -39,7 +40,7 @@ func ParseRecipients(contents string) ([]age.Recipient, error) {
 		// First, try to parse as an X25519 recipient.
 		recipient, err = age.ParseX25519Recipient(line)
 		if err != nil {
-			// Then try parsing as an SSH public key.
+			// If that fails, try parsing as an SSH public key.
 			recipient, err = agessh.ParseRecipient(line)
 			if err != nil {
 				return nil, fmt.Errorf("invalid recipient: %v", err)
@@ -52,9 +53,9 @@ func ParseRecipients(contents string) ([]age.Recipient, error) {
 	return recips, nil
 }
 
-// Encrypt the password and save it to a file.
-func SaveEntry(recipients, passwordStore, name, password string) error {
-	recipientsData, err := os.ReadFile(recipients)
+// SaveEntry encrypts the provided password and saves it to a file in the password store.
+func SaveEntry(recipientsPath, passwordStore, name, password string) error {
+	recipientsData, err := os.ReadFile(recipientsPath)
 	if err != nil {
 		return fmt.Errorf("failed to read recipients file: %v", err)
 	}
@@ -69,8 +70,7 @@ func SaveEntry(recipients, passwordStore, name, password string) error {
 		return err
 	}
 
-	err = os.MkdirAll(filepath.Dir(dest), pago.DirPerms)
-	if err != nil {
+	if err := os.MkdirAll(filepath.Dir(dest), pago.DirPerms); err != nil {
 		return fmt.Errorf("failed to create output path: %v", err)
 	}
 
@@ -101,7 +101,8 @@ func SaveEntry(recipients, passwordStore, name, password string) error {
 	return nil
 }
 
-// Returns a reader that can handle both armored and binary age files.
+// WrapDecrypt returns a reader that can decrypt data from the input reader.
+// It automatically detects whether the input is in the armored or binary age format.
 func WrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
 	buffer := make([]byte, len(armor.Header))
 
@@ -121,6 +122,8 @@ func WrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
 	return age.Decrypt(r, identities...)
 }
 
+// ParseIdentities parses a string containing age identities and/or SSH private keys.
+// It supports both native age X25519 identities and PEM-encoded SSH private keys.
 func ParseIdentities(identityData string) ([]age.Identity, error) {
 	var allIdentities []age.Identity
 	var pemBlock []string
@@ -178,6 +181,7 @@ func ParseIdentities(identityData string) ([]age.Identity, error) {
 	return allIdentities, nil
 }
 
+// DecryptIdentities decrypts the identities file using a password provided by the user.
 func DecryptIdentities(identitiesPath string) (string, error) {
 	encryptedData, err := os.ReadFile(identitiesPath)
 	if err != nil {
@@ -209,7 +213,8 @@ func DecryptIdentities(identitiesPath string) (string, error) {
 	return string(decrypted), nil
 }
 
-func DecryptEntry(identities, passwordStore, name string) ([]byte, error) {
+// DecryptEntry decrypts a password entry from the store using identities from the identities file.
+func DecryptEntry(identitiesPath, passwordStore, name string) ([]byte, error) {
 	file, err := pago.EntryFile(passwordStore, name)
 	if err != nil {
 		return nil, err
@@ -220,7 +225,7 @@ func DecryptEntry(identities, passwordStore, name string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to read password file: %v", err)
 	}
 
-	identitiesText, err := DecryptIdentities(identities)
+	identitiesText, err := DecryptIdentities(identitiesPath)
 	if err != nil {
 		return nil, err
 	}
@@ -243,6 +248,8 @@ func DecryptEntry(identities, passwordStore, name string) ([]byte, error) {
 	return content, nil
 }
 
+// EntryFile constructs the full file path for a given entry name in the store.
+// It also checks the entry name for invalid characters and ensures the path is within the store.
 func EntryFile(passwordStore, name string) (string, error) {
 	re := regexp.MustCompile(pago.NameInvalidChars)
 	if re.MatchString(name) {

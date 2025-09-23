@@ -14,6 +14,7 @@ import (
 	"github.com/rivo/tview"
 )
 
+// cancelError is a custom error type indicating the editor was canceled by the user.
 type cancelError struct{}
 
 const (
@@ -22,13 +23,16 @@ const (
 	editorCharLimit = 1 << 30
 )
 
+// CancelError is the public instance of the cancelError.
 var CancelError = &cancelError{}
 
+// Error returns the error message for a cancelError.
 func (e *cancelError) Error() string {
 	return "editor canceled"
 }
 
-// Edit presents an editor with a given initial content and returns the edited text.
+// Edit presents an interactive text editor with the given initial content.
+// It returns the edited text or an error if the editor is canceled or fails.
 func Edit(title, initial string, save, mouse bool) (string, error) {
 	if len(initial) > editorCharLimit {
 		return "", fmt.Errorf("initial text too large: over %s", humanize.IBytesN(editorCharLimit, 1))

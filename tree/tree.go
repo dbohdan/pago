@@ -16,6 +16,8 @@ import (
 	"github.com/xlab/treeprint"
 )
 
+// DirTree generates a string representation of a directory tree,
+// applying a transformation function to each file/directory.
 func DirTree(root string, transform func(name string, info os.FileInfo) (bool, string)) (string, error) {
 	tree := treeprint.NewWithRoot(filepath.Base(root))
 	visited := make(map[string]treeprint.Tree)
@@ -63,6 +65,8 @@ func DirTree(root string, transform func(name string, info os.FileInfo) (bool, s
 	return tree.String(), nil
 }
 
+// PrintStoreTree prints a tree-like representation of the password store.
+// It filters out hidden files and appends a "/" to directory names.
 func PrintStoreTree(store string) error {
 	tree, err := DirTree(store, func(name string, info os.FileInfo) (bool, string) {
 		if strings.HasPrefix(info.Name(), ".") {

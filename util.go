@@ -14,7 +14,8 @@ import (
 	"time"
 )
 
-// Map an entry's name to its file path.
+// EntryFile constructs the full file path for a given entry name in the store.
+// It also validates the entry name for invalid characters and ensures the path is within the store.
 func EntryFile(passwordStore, name string) (string, error) {
 	re := regexp.MustCompile(NameInvalidChars)
 	if re.MatchString(name) {
@@ -23,6 +24,7 @@ func EntryFile(passwordStore, name string) (string, error) {
 
 	file := filepath.Join(passwordStore, name+AgeExt)
 
+	// Ensure the entry path does not escape the password store directory.
 	for path := file; path != "/"; path = filepath.Dir(path) {
 		if path == passwordStore {
 			return file, nil
@@ -32,12 +34,14 @@ func EntryFile(passwordStore, name string) (string, error) {
 	return "", fmt.Errorf("entry path is out of bounds")
 }
 
+// WaitUntilAvailable waits until a file or directory at the given path exists,
+// or until a maximum duration has passed.
 func WaitUntilAvailable(path string, maximum time.Duration) error {
 	start := time.Now()
 
 	for {
 		if _, err := os.Stat(path); err == nil {
-			return nil
+			return nil // Path exists.
 		}
 
 		elapsed := time.Since(start)
@@ -49,10 +53,12 @@ func WaitUntilAvailable(path string, maximum time.Duration) error {
 	}
 }
 
+// PrintError prints a formatted error message to stderr.
 func PrintError(format string, value any) {
 	fmt.Fprintf(os.Stderr, "Error: "+format+"\n", value)
 }
 
+// ExitWithError prints a formatted error message to stderr and exits the program with status 1.
 func ExitWithError(format string, value any) {
 	PrintError(format, value)
 	os.Exit(1)
@@ -66,6 +72,8 @@ func Zero(b []byte) {
 	}
 }
 
+// ListFiles walks a directory tree and returns a list of file names
+// that satisfy a given transformation/filter function.
 func ListFiles(root string, transform func(name string, info os.FileInfo) (bool, string)) ([]string, error) {
 	list := []string{}
 

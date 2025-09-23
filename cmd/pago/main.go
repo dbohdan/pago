@@ -73,6 +73,7 @@ type CLI struct {
 	Version  VersionCmd  `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
 }
 
+// Config holds the resolved configuration for pago operations.
 type Config struct {
 	AgentExecutable string
 	Confirm         bool
@@ -91,7 +92,7 @@ type Config struct {
 }
 
 const (
-	maxStepsPerChar = 1000
+	maxStepsPerChar = 1000 // Maximum attempts to find a random character matching the pattern.
 	storePath       = "store"
 )
 
@@ -106,6 +107,7 @@ type AddCmd struct {
 	Random    bool   `short:"r" help:"Generate a random password" xor:"mode"`
 }
 
+// printRepr prints a detailed representation of a Go value to stderr for debugging.
 func printRepr(value any) {
 	valueRepr := repr.String(
 		value,
@@ -142,7 +144,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 
 		password = buf.String()
 	} else {
-		// Either generate a password or use input with confirmation.
+		// Determine whether to generate a random password or prompt for manual input.
 		var generate bool
 
 		if cmd.Input || cmd.Random {
@@ -226,6 +228,7 @@ func (cmd *StartCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
+	// Check if an agent is already running.
 	if err := agent.Ping(config.Socket); err == nil {
 		return fmt.Errorf("found agent responding on socket")
 	}
@@ -260,7 +263,7 @@ func (cmd *StatusCmd) Run(config *Config) error {
 		os.Exit(1)
 	}
 
-	return nil
+	return nil // This line is unreachable.
 }
 
 type StopCmd struct{}
@@ -283,6 +286,7 @@ type ClipCmd struct {
 	Timeout int    `short:"t" env:"${TimeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable, ${env})"`
 }
 
+// copyToClipboard executes a command to copy text to the system clipboard.
 func copyToClipboard(command string, text string) error {
 	args, err := shlex.Split(command, true)
 	if err != nil {
@@ -299,6 +303,7 @@ func copyToClipboard(command string, text string) error {
 	return nil
 }
 
+// englishPlural returns the singular or plural form of a word based on count.
 func englishPlural(singular, plural string, count int) string {
 	if count%10 == 1 && count%100 != 11 {
 		return singular
@@ -307,8 +312,10 @@ func englishPlural(singular, plural string, count int) string {
 	return plural
 }
 
+// decryptEntry decrypts a password entry, using the agent if available and configured.
 func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string) ([]byte, error) {
 	if agentSocket == "" {
+		// Agent is disabled, decrypt directly.
 		return crypto.DecryptEntry(identities, passwordStore, name)
 	}
 
@@ -323,8 +330,7 @@ func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemloc
 	}
 
 	if err := agent.Ping(agentSocket); err != nil {
-		// Ping failed.
-		// Attempt to start the agent.
+		// If ping fails, attempt to start the agent.
 		identitiesText, err := crypto.DecryptIdentities(identities)
 		if err != nil {
 			return nil, err
@@ -343,6 +349,7 @@ func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemloc
 	return content, nil
 }
 
+// getOTP generates a one-time password from an otpauth URI.
 func getOTP(otpURL string) (string, error) {
 	otpKey, err := otp.NewKeyFromURL(otpURL)
 	if err != nil {
@@ -491,11 +498,12 @@ type DeleteCmd struct {
 	Pick  bool `short:"p" help:"Pick entry using fuzzy finder"`
 }
 
+// removeEmptyParentDirs recursively removes empty parent directories up to a specified root.
 func removeEmptyParentDirs(top, dir string) {
 	for dir != top {
 		err := os.Remove(dir)
 		if err != nil {
-			// The directory is not empty or there was another error.
+			// The directory is not empty or there was another error, stop.
 			break
 		}
 
@@ -586,7 +594,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 	var err error
 
 	if entryExists(config.Store, name) {
-		// Decrypt the existing entry.
+		// Decrypt the existing entry content.
 		contentBytes, err := decryptEntry(
 			config.AgentExecutable,
 			config.Expire,
@@ -792,6 +800,7 @@ func (cmd *KeyCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
+	// This command is a shortcut for "show --key".
 	showCmd := &ShowCmd{Name: cmd.Name, Key: cmd.Key}
 	return showCmd.Run(config)
 }
@@ -803,6 +812,7 @@ type PickCmd struct {
 }
 
 func (cmd *PickCmd) Run(config *Config) error {
+	// This command is a shortcut for "show --pick".
 	showCmd := &ShowCmd{Name: cmd.Name, Key: cmd.Key, Pick: true}
 	return showCmd.Run(config)
 }
@@ -824,8 +834,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 		return fmt.Errorf("no password entries found")
 	}
 
-	// Decrypt the identities once.
-	// This is so we don't have to ask the user for a password repeatedly without using the agent.
+	// Decrypt the identities once to avoid repeated password prompts.
 	identitiesText, err := crypto.DecryptIdentities(config.Identities)
 	if err != nil {
 		return err
@@ -836,7 +845,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to parse identities: %v", err)
 	}
 
-	// Decrypt each entry using the loaded identities and reencrypt it with the recipients.
+	// Decrypt each entry using the loaded identities and re-encrypt it with the current recipients.
 	count := 0
 	for _, entry := range entries {
 		file, err := crypto.EntryFile(config.Store, entry)
@@ -1011,6 +1020,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 	}
 
 	if !cmd.Pick && cmd.Name == "" {
+		// If no name is provided and not picking, print the store tree.
 		return tree.PrintStoreTree(config.Store)
 	}
 
@@ -1063,7 +1073,7 @@ func (cmd *VersionCmd) Run(config *Config) error {
 	return nil
 }
 
-// Initialize configuration using the CLI as the main input.
+// initConfig initializes the Config struct based on CLI arguments and environment variables.
 func initConfig(cli *CLI) (*Config, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -1092,7 +1102,8 @@ func initConfig(cli *CLI) (*Config, error) {
 	return &config, nil
 }
 
-// Generate a random password where each character matches a regular expression.
+// generatePassword generates a random password of a specified length,
+// where each character matches a given regular expression pattern.
 func generatePassword(pattern string, length int) (string, error) {
 	regexpPattern, err := regexp.Compile(pattern)
 	if err != nil {
@@ -1123,11 +1134,13 @@ func generatePassword(pattern string, length int) (string, error) {
 	return password.String(), nil
 }
 
+// pathExists checks if a file or directory exists at the given path.
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
 	return !errors.Is(err, os.ErrNotExist)
 }
 
+// entryExists checks if an entry with the given name exists in the store.
 func entryExists(passwordStore, name string) bool {
 	file, err := crypto.EntryFile(passwordStore, name)
 	if err != nil {
@@ -1141,6 +1154,7 @@ func main() {
 	GitEmail := pago.DefaultGitEmail
 	GitName := pago.DefaultGitName
 
+	// Attempt to load Git user configuration for default author details.
 	globalConfig, err := gitConfig.LoadConfig(gitConfig.GlobalScope)
 	if err == nil {
 		GitEmail = globalConfig.User.Email

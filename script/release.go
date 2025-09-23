@@ -26,6 +26,7 @@ var (
 	pkgs = []string{"./cmd/pago", "./cmd/pago-agent"}
 )
 
+// BuildTarget represents a target operating system and architecture for a build.
 type BuildTarget struct {
 	os   string
 	arch string
@@ -38,6 +39,7 @@ func main() {
 	}
 }
 
+// buildAll build and releases all defined targets.
 func buildAll() error {
 	version := os.Getenv("VERSION")
 	if version == "" {
@@ -138,6 +140,7 @@ func userArchAndSystem(target BuildTarget) (string, string) {
 	return arch, system
 }
 
+// build compiles a Go package for a specific target and places the executable in the given directory.
 func build(target BuildTarget, dir, pkg string) (string, error) {
 	fmt.Printf("    - %s\n", pkg)
 
@@ -162,6 +165,7 @@ func build(target BuildTarget, dir, pkg string) (string, error) {
 	return outputPath, nil
 }
 
+// zipDirectory creates a zip archive of the specified directory.
 func zipDirectory(zipPath, dirPath string) error {
 	zipFile, err := os.Create(zipPath)
 	if err != nil {
@@ -217,6 +221,7 @@ func zipDirectory(zipPath, dirPath string) error {
 	return err
 }
 
+// appendChecksum calculates the SHA256 checksum of a file and appends it to the checksum file.
 func appendChecksum(checksumFilePath, filePath string) error {
 	f, err := os.Open(filePath)
 	if err != nil {
@@ -250,6 +255,7 @@ func appendChecksum(checksumFilePath, filePath string) error {
 	return nil
 }
 
+// signFile signs a file using ssh-keygen.
 func signFile(filePath string) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {

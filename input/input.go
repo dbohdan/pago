@@ -19,7 +19,7 @@ import (
 	"golang.org/x/term"
 )
 
-// Pick an entry using a fuzzy finder.
+// PickEntry interactively selects an entry using a fuzzy finder.
 func PickEntry(store string, query string) (string, error) {
 	// Create a list of all passwords.
 	list, err := pago.ListFiles(store, pago.EntryFilter(store, nil))
@@ -70,7 +70,7 @@ func SecureRead(prompt string) ([]byte, error) {
 	}
 
 	// scanner.Bytes() returns a slice that is valid only until the next Scan().
-	// We need to copy it.
+	// We need to copy it to ensure its persistence.
 	pass := scanner.Bytes()
 	passCopy := make([]byte, len(pass))
 	copy(passCopy, pass)
@@ -78,6 +78,7 @@ func SecureRead(prompt string) ([]byte, error) {
 	return passCopy, nil
 }
 
+// AskYesNo prompts the user with a yes/no question and returns their boolean answer.
 func AskYesNo(prompt string) (bool, error) {
 	fmt.Fprintf(os.Stderr, "%s [y/n]: ", prompt)
 
@@ -108,7 +109,8 @@ func AskYesNo(prompt string) (bool, error) {
 	return answer == "y", nil
 }
 
-// Ask the user to input a password, twice if confirm is true.
+// ReadNewPassword prompts the user to input a new password,
+// optionally asking for confirmation by re-entering it.
 func ReadNewPassword(confirm bool) ([]byte, error) {
 	pass, err := SecureRead("Enter password: ")
 	if err != nil {
