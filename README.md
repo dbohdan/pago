@@ -465,7 +465,7 @@ cap_mkdb /etc/login.conf
 ### Interactive editor
 
 ![Screenshot of the editor in a terminal showing a TOML entry.
-The TOML entry has a password "hunter2" and a test TOTP URL.](editor.png)
+The TOML entry has a password "hunter2" and a test TOTP URL.](editor.svg)
 
 The editor is implemented as a text area from the [tview](https://github.com/rivo/tview) library.
 It has the following key bindings:

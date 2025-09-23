@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
+<svg width="568.33" height="302.00" xmlns="http://www.w3.org/2000/svg">
+<style>
+  .bg { fill: #f6f8fa; }
+  .fg { fill: #1f2328; }
+  @media (prefers-color-scheme: dark) {
+    .bg { fill: #151b23; }
+    .fg { fill: #f0f6fc; }
+  }
+</style>
+<rect class="bg" width="568.33" height="302.00" x="0.00px" y="0.00px"/>
+<g class="fg" font-family="monospace" font-size="14.00px">
+<text x="20.00px" y="36.80px" xml:space="preserve">&quot;foo&quot; [ Ctrl+D: Save ] [ Ctrl+V Paste ] [ Ctrl+C: Cancel ]
+</text><text x="20.00px" y="53.60px" xml:space="preserve">
+</text><text x="20.00px" y="70.40px" xml:space="preserve"># TOML
+</text><text x="20.00px" y="87.20px" xml:space="preserve">password = &quot;hunter2&quot;
+</text><text x="20.00px" y="104.00px" xml:space="preserve">otp = &quot;otpauth://totp/Example:alice@google.com?secret=JBSWY3
+</text><text x="20.00px" y="120.80px" xml:space="preserve">DPEHPK3PXP&amp;issuer=Example&quot;
+</text><text x="20.00px" y="137.60px" xml:space="preserve">
+</text><text x="20.00px" y="154.40px" xml:space="preserve">
+</text><text x="20.00px" y="171.20px" xml:space="preserve">
+</text><text x="20.00px" y="188.00px" xml:space="preserve">
+</text><text x="20.00px" y="204.80px" xml:space="preserve">
+</text><text x="20.00px" y="221.60px" xml:space="preserve">
+</text><text x="20.00px" y="238.40px" xml:space="preserve">
+</text><text x="20.00px" y="255.20px" xml:space="preserve">
+</text>
+</g>
+</svg>
