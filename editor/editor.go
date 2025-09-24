@@ -18,8 +18,8 @@ import (
 type cancelError struct{}
 
 const (
-	bannerNoSave    = "%q [ Ctrl+V Paste ] [ Ctrl+C: Cancel ]"
-	bannerSave      = "%q [ Ctrl+D: Save ] [ Ctrl+V Paste ] [ Ctrl+C: Cancel ]"
+	bannerNoSave    = "%q [ Ctrl+C: Cancel ] [ Ctrl+V: Paste ]"
+	bannerSave      = "%q [ Ctrl+D: Save ] [ Ctrl+C: Cancel ] [ Ctrl+V: Paste ]"
 	editorCharLimit = 1 << 30
 )
 
