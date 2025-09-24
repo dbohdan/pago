@@ -11,11 +11,11 @@
 </style>
 <rect class="bg" width="568.3" height="302.0" x="0.0px" y="0.0px" rx="6px"/>
 <g class="fg" font-family="monospace" font-size="14.0px">
-<text x="20.0px" y="51.8px" xml:space="preserve">&quot;foo&quot; [ Ctrl+D: Save ] [ Ctrl+V Paste ] [ Ctrl+C: Cancel ]
+<text x="20.0px" y="51.8px" xml:space="preserve">&quot;foo&quot; [ Ctrl+D: Save ] [ Ctrl+V Paste ] [ Ctrl+C: Cancel ]
 </text><text x="20.0px" y="68.6px" xml:space="preserve">
-</text><text x="20.0px" y="85.4px" xml:space="preserve"># TOML
-</text><text x="20.0px" y="102.2px" xml:space="preserve">password = &quot;hunter2&quot;
-</text><text x="20.0px" y="119.0px" xml:space="preserve">otp = &quot;otpauth://totp/Example:alice@google.com?secret=JBSWY3
+</text><text x="20.0px" y="85.4px" xml:space="preserve"></text><rect class="fg" x="20.0px" y="72.3px" width="8.4px" height="16.4px"/><text class="bg" x="20.0px" y="85.4px" xml:space="preserve">#</text><text class="fg" x="28.4px" y="85.4px" xml:space="preserve"> TOML
+</text><text x="20.0px" y="102.2px" xml:space="preserve">password = &quot;hunter2&quot;
+</text><text x="20.0px" y="119.0px" xml:space="preserve">otp = &quot;otpauth://totp/Example:alice@google.com?secret=JBSWY3
 </text><text x="20.0px" y="135.8px" xml:space="preserve">DPEHPK3PXP&amp;issuer=Example&quot;
 </text><text x="20.0px" y="152.6px" xml:space="preserve">
 </text><text x="20.0px" y="169.4px" xml:space="preserve">
