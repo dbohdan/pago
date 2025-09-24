@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
-<svg width="568.33" height="302.00" xmlns="http://www.w3.org/2000/svg">
+<svg width="568.3" height="302.0" xmlns="http://www.w3.org/2000/svg">
 <style>
   .bg { fill: #f6f8fa; }
   .fg { fill: #1f2328; }
@@ -9,25 +9,25 @@
     .fg { fill: #f0f6fc; }
   }
 </style>
-<rect class="bg" width="568.33" height="302.00" x="0.00px" y="0.00px"/>
-<g class="fg" font-family="monospace" font-size="14.00px">
-<text x="20.00px" y="51.80px" xml:space="preserve">&quot;foo&quot; [ Ctrl+D: Save ] [ Ctrl+V Paste ] [ Ctrl+C: Cancel ]
-</text><text x="20.00px" y="68.60px" xml:space="preserve">
-</text><text x="20.00px" y="85.40px" xml:space="preserve"># TOML
-</text><text x="20.00px" y="102.20px" xml:space="preserve">password = &quot;hunter2&quot;
-</text><text x="20.00px" y="119.00px" xml:space="preserve">otp = &quot;otpauth://totp/Example:alice@google.com?secret=JBSWY3
-</text><text x="20.00px" y="135.80px" xml:space="preserve">DPEHPK3PXP&amp;issuer=Example&quot;
-</text><text x="20.00px" y="152.60px" xml:space="preserve">
-</text><text x="20.00px" y="169.40px" xml:space="preserve">
-</text><text x="20.00px" y="186.20px" xml:space="preserve">
-</text><text x="20.00px" y="203.00px" xml:space="preserve">
-</text><text x="20.00px" y="219.80px" xml:space="preserve">
-</text><text x="20.00px" y="236.60px" xml:space="preserve">
-</text><text x="20.00px" y="253.40px" xml:space="preserve">
-</text><text x="20.00px" y="270.20px" xml:space="preserve">
+<rect class="bg" width="568.3" height="302.0" x="0.0px" y="0.0px" rx="6px"/>
+<g class="fg" font-family="monospace" font-size="14.0px">
+<text x="20.0px" y="51.8px" xml:space="preserve">&quot;foo&quot; [ Ctrl+D: Save ] [ Ctrl+V Paste ] [ Ctrl+C: Cancel ]
+</text><text x="20.0px" y="68.6px" xml:space="preserve">
+</text><text x="20.0px" y="85.4px" xml:space="preserve"># TOML
+</text><text x="20.0px" y="102.2px" xml:space="preserve">password = &quot;hunter2&quot;
+</text><text x="20.0px" y="119.0px" xml:space="preserve">otp = &quot;otpauth://totp/Example:alice@google.com?secret=JBSWY3
+</text><text x="20.0px" y="135.8px" xml:space="preserve">DPEHPK3PXP&amp;issuer=Example&quot;
+</text><text x="20.0px" y="152.6px" xml:space="preserve">
+</text><text x="20.0px" y="169.4px" xml:space="preserve">
+</text><text x="20.0px" y="186.2px" xml:space="preserve">
+</text><text x="20.0px" y="203.0px" xml:space="preserve">
+</text><text x="20.0px" y="219.8px" xml:space="preserve">
+</text><text x="20.0px" y="236.6px" xml:space="preserve">
+</text><text x="20.0px" y="253.4px" xml:space="preserve">
+</text><text x="20.0px" y="270.2px" xml:space="preserve">
 </text>
 </g>
-<svg x="500.83px" y="0.00px">
+<svg x="500.8px" y="1.0px">
 <g class="fg">
 <rect x="10" y="13" width="7" height="1.5"/>
 <path fill-rule="evenodd" d="M28,8 h9 v9 h-9 z M29,9 h7 v7 h-7 z"/>
