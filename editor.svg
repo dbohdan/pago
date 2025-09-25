@@ -5,12 +5,12 @@
   :root {
     --bg-color: #f6f8fa;
     --fg-color: #1f2328;
-    --border-color: #59636e;
+    --border-color: #d1d9e0;
 
     @media (prefers-color-scheme: dark) {
         --bg-color: #151b23;
         --fg-color: #f0f6fc;
-        --border-color: #9198a1;
+        --border-color: #3d444d;
     }
   }
 
@@ -28,7 +28,7 @@
 
   .border {
     stroke: var(--border-color);
-    stroke-width: 1px;
+    stroke-width: 1.0px;
   }
 </style>
 <rect class="bg border" width="567.3" height="301.0" x="0.5px" y="0.5px" rx="6px"/>
@@ -50,7 +50,7 @@
 </text>
 </g>
 <svg x="500.8px" y="1.0px">
-<g class="border-color">
+<g class="fg">
 <rect x="10" y="13" width="7" height="1.5"/>
 <path fill-rule="evenodd" d="M28,8 h9 v9 h-9 z M29,9 h7 v7 h-7 z"/>
 <rect x="45.5" y="12" width="12" height="1.15" transform="rotate(45, 51.5, 12.5)"/>
