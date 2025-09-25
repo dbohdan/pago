@@ -36,6 +36,7 @@ import (
 	"github.com/alecthomas/kong"
 	"github.com/alecthomas/repr"
 	"github.com/anmitsu/go-shlex"
+	"github.com/atotto/clipboard"
 	gitConfig "github.com/go-git/go-git/v5/config"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -280,7 +281,7 @@ func (cmd *StopCmd) Run(config *Config) error {
 type ClipCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
-	Command string `short:"c" env:"${ClipEnv}" default:"${DefaultClip}" help:"Command for copying text from stdin to clipboard (${env})"`
+	Command string `short:"c" env:"${ClipEnv}" help:"Command for copying text from stdin to clipboard (${env})"`
 	Key     string `short:"k" help:"Retrieve a key from a TOML entry"`
 	Pick    bool   `short:"p" help:"Pick entry using fuzzy finder"`
 	Timeout int    `short:"t" env:"${TimeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable, ${env})"`
@@ -288,6 +289,10 @@ type ClipCmd struct {
 
 // copyToClipboard executes a command to copy text to the system clipboard.
 func copyToClipboard(command string, text string) error {
+	if command == "" {
+		return clipboard.WriteAll(text)
+	}
+
 	args, err := shlex.Split(command, true)
 	if err != nil {
 		return fmt.Errorf("failed to split clipboard command: %v", err)
@@ -1183,7 +1188,6 @@ func main() {
 		}),
 		kong.Vars{
 			"DefaultAgent":   pago.DefaultAgent,
-			"DefaultClip":    pago.DefaultClip,
 			"DefaultDataDir": pago.DefaultDataDir,
 			"DefaultLength":  pago.DefaultPasswordLength,
 			"DefaultPattern": pago.DefaultPasswordPattern,

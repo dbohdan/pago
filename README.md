@@ -420,10 +420,7 @@ cap_mkdb /etc/login.conf
   The agent executable
 - `PAGO_CLIP`:
   The command to use to copy text to the clipboard.
-  The default differs by platform:
-    - Android: `termux-clipboard-set`
-    - Linux and BSD: `xclip -in -selection clip`
-    - macOS: `pbcopy`
+  When empty (default), the command is determined automatically using [atotto/clipboard](https://github.com/atotto/clipboard).
 - `PAGO_CONFIRM`:
   Whether to ask for a new password twice for confirmation.
   `0` to disable.
