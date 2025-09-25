@@ -66,8 +66,6 @@ type CLI struct {
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
 	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
 	Init     InitCmd     `cmd:"" help:"Create a new password store"`
-	Key      KeyCmd      `cmd:"" aliases:"k" help:"Show a key from a TOML entry. A shortcut for \"show --key\"."`
-	Keys     KeysCmd     `cmd:"" help:"List keys in a TOML entry"`
 	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
 	Rekey    RekeyCmd    `cmd:"" help:"Reencrypt all password entries with the recipients file"`
 	Rename   RenameCmd   `cmd:"" aliases:"mv,r" help:"Rename or move a password entry"`
@@ -356,8 +354,13 @@ func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemloc
 	return content, nil
 }
 
-// getOTP generates a one-time password from an otpauth URI.
-func getOTP(otpURL string) (string, error) {
+// isTOML returns whether content is a TOML entry.
+func isTOML(content string) bool {
+	return strings.HasPrefix(content, "# TOML")
+}
+
+// generateOTP generates a one-time password from an otpauth URI.
+func generateOTP(otpURL string) (string, error) {
 	otpKey, err := otp.NewKeyFromURL(otpURL)
 	if err != nil {
 		return "", fmt.Errorf("failed to parse otpauth URL: %w", err)
@@ -377,6 +380,8 @@ func getOTP(otpURL string) (string, error) {
 	return code, nil
 }
 
+// getPassword decrypts an entry and returns its content, or a specific key's
+// value if it's a TOML entry.
 func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name, key string) (string, error) {
 	contentBytes, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
 	if err != nil {
@@ -385,10 +390,9 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 	defer pago.Zero(contentBytes)
 	content := string(contentBytes)
 
-	isTOML := strings.HasPrefix(content, "# TOML")
-	if !isTOML {
+	if !isTOML(content) {
 		if key != "" {
-			return "", fmt.Errorf("entry %q is not a TOML entry; cannot use --key", name)
+			return "", fmt.Errorf("%q is not a TOML entry; cannot use key", name)
 		}
 
 		return content, nil
@@ -426,7 +430,7 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 		s := v.String()
 
 		if key == "otp" {
-			return getOTP(s)
+			return generateOTP(s)
 		}
 
 		return s, nil
@@ -797,89 +801,6 @@ func (cmd *InitCmd) Run(config *Config) error {
 	return nil
 }
 
-type KeyCmd struct {
-	Name string `arg:"" help:"Name of the password entry"`
-	Key  string `arg:"" help:"Key to retrieve from the TOML entry"`
-}
-
-func (cmd *KeyCmd) Run(config *Config) error {
-	if config.Verbose {
-		printRepr(cmd)
-	}
-
-	// This command is a shortcut for "show --key".
-	showCmd := &ShowCmd{Name: cmd.Name, Key: cmd.Key}
-	return showCmd.Run(config)
-}
-
-type KeysCmd struct {
-	Name string `arg:"" optional:"" help:"Name of the password entry"`
-	Pick bool   `short:"p" help:"Pick entry using fuzzy finder"`
-}
-
-func (cmd *KeysCmd) Run(config *Config) error {
-	if config.Verbose {
-		printRepr(cmd)
-	}
-
-	name := cmd.Name
-	if cmd.Pick {
-		picked, err := input.PickEntry(config.Store, name)
-		if err != nil {
-			return err
-		}
-		if picked == "" {
-			return nil
-		}
-		name = picked
-	}
-
-	if name == "" {
-		return fmt.Errorf("entry name is required")
-	}
-
-	if !entryExists(config.Store, name) {
-		return fmt.Errorf("entry doesn't exist: %v", name)
-	}
-
-	contentBytes, err := decryptEntry(
-		config.AgentExecutable,
-		config.Expire,
-		config.Memlock,
-		config.Socket,
-		config.Identities,
-		config.Store,
-		name,
-	)
-	if err != nil {
-		return err
-	}
-	defer pago.Zero(contentBytes)
-	content := string(contentBytes)
-
-	isTOML := strings.HasPrefix(content, "# TOML")
-	if !isTOML {
-		return fmt.Errorf("entry %q is not a TOML entry", name)
-	}
-
-	var data map[string]any
-	if _, err := toml.Decode(content, &data); err != nil {
-		return fmt.Errorf("failed to parse entry as TOML: %w", err)
-	}
-
-	keys := make([]string, 0, len(data))
-	for k := range data {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	for _, k := range keys {
-		fmt.Println(k)
-	}
-
-	return nil
-}
-
 type PickCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
@@ -1082,16 +1003,48 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 	return nil
 }
 
+// getTOMLKeys decrypts a TOML entry and returns a sorted list of its keys.
+func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string) ([]string, error) {
+	contentBytes, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
+	if err != nil {
+		return nil, err
+	}
+	defer pago.Zero(contentBytes)
+	content := string(contentBytes)
+
+	if !isTOML(content) {
+		return nil, fmt.Errorf("%q is not a TOML entry; cannot list keys", name)
+	}
+
+	var data map[string]any
+	if _, err := toml.Decode(content, &data); err != nil {
+		return nil, fmt.Errorf("failed to parse entry as TOML: %w", err)
+	}
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	return keys, nil
+}
+
 type ShowCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
-	Key  string `short:"k" help:"Retrieve a key from a TOML entry"`
+	Key  string `short:"k" help:"Retrieve a key from a TOML entry" xor:"toml"`
+	Keys bool   `short:"K" help:"List keys in a TOML entry" xor:"toml"`
 	Pick bool   `short:"p" help:"Pick entry using fuzzy finder"`
 }
 
 func (cmd *ShowCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
+	}
+
+	if cmd.Keys && cmd.Name == "" && !cmd.Pick {
+		return fmt.Errorf("entry name required with --keys")
 	}
 
 	if !cmd.Pick && cmd.Name == "" {
@@ -1115,22 +1068,41 @@ func (cmd *ShowCmd) Run(config *Config) error {
 		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
 	}
 
-	password, err := getPassword(
-		config.AgentExecutable,
-		config.Expire,
-		config.Memlock,
-		config.Socket,
-		config.Identities,
-		config.Store,
-		name,
-		cmd.Key,
-	)
-	if err != nil {
-		return err
+	var output string
+	if cmd.Keys {
+		keys, err := getTOMLKeys(
+			config.AgentExecutable,
+			config.Expire,
+			config.Memlock,
+			config.Socket,
+			config.Identities,
+			config.Store,
+			name,
+		)
+		if err != nil {
+			return err
+		}
+
+		output = strings.Join(keys, "\n")
+	} else {
+		var err error
+		output, err = getPassword(
+			config.AgentExecutable,
+			config.Expire,
+			config.Memlock,
+			config.Socket,
+			config.Identities,
+			config.Store,
+			name,
+			cmd.Key,
+		)
+		if err != nil {
+			return err
+		}
 	}
 
-	fmt.Print(password)
-	if !strings.HasSuffix(password, "\n") {
+	fmt.Print(output)
+	if !strings.HasSuffix(output, "\n") {
 		fmt.Println()
 	}
 
