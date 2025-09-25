@@ -2,14 +2,36 @@
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
 <svg width="568.3" height="302.0" xmlns="http://www.w3.org/2000/svg">
 <style>
-  .bg { fill: #f6f8fa; }
-  .fg { fill: #1f2328; }
-  @media (prefers-color-scheme: dark) {
-    .bg { fill: #151b23; }
-    .fg { fill: #f0f6fc; }
+  :root {
+    --bg-color: #f6f8fa;
+    --fg-color: #1f2328;
+    --border-color: #59636e;
+
+    @media (prefers-color-scheme: dark) {
+        --bg-color: #151b23;
+        --fg-color: #f0f6fc;
+        --border-color: #9198a1;
+    }
+  }
+
+  .bg {
+    fill: var(--bg-color);
+  }
+
+  .fg {
+    fill: var(--fg-color);
+  }
+
+  .border-color {
+    fill: var(--border-color);
+  }
+
+  .border {
+    stroke: var(--border-color);
+    stroke-width: 1px;
   }
 </style>
-<rect class="bg" width="568.3" height="302.0" x="0.0px" y="0.0px" rx="6px"/>
+<rect class="bg border" width="567.3" height="301.0" x="0.5px" y="0.5px" rx="6px"/>
 <g class="fg" font-family="monospace" font-size="14.0px">
 <text x="20.0px" y="51.8px" xml:space="preserve">&quot;foo&quot; [ Ctrl+D: Save ] [ Ctrl+C: Cancel ] [ Ctrl+V: Paste ]
 </text><text x="20.0px" y="68.6px" xml:space="preserve">
@@ -28,7 +50,7 @@
 </text>
 </g>
 <svg x="500.8px" y="1.0px">
-<g class="fg">
+<g class="border-color">
 <rect x="10" y="13" width="7" height="1.5"/>
 <path fill-rule="evenodd" d="M28,8 h9 v9 h-9 z M29,9 h7 v7 h-7 z"/>
 <rect x="45.5" y="12" width="12" height="1.15" transform="rotate(45, 51.5, 12.5)"/>
