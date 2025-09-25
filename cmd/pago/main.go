@@ -19,6 +19,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -66,6 +67,7 @@ type CLI struct {
 	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
 	Init     InitCmd     `cmd:"" help:"Create a new password store"`
 	Key      KeyCmd      `cmd:"" aliases:"k" help:"Show a key from a TOML entry. A shortcut for \"show --key\"."`
+	Keys     KeysCmd     `cmd:"" help:"List keys in a TOML entry"`
 	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
 	Rekey    RekeyCmd    `cmd:"" help:"Reencrypt all password entries with the recipients file"`
 	Rename   RenameCmd   `cmd:"" aliases:"mv,r" help:"Rename or move a password entry"`
@@ -808,6 +810,74 @@ func (cmd *KeyCmd) Run(config *Config) error {
 	// This command is a shortcut for "show --key".
 	showCmd := &ShowCmd{Name: cmd.Name, Key: cmd.Key}
 	return showCmd.Run(config)
+}
+
+type KeysCmd struct {
+	Name string `arg:"" optional:"" help:"Name of the password entry"`
+	Pick bool   `short:"p" help:"Pick entry using fuzzy finder"`
+}
+
+func (cmd *KeysCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	name := cmd.Name
+	if cmd.Pick {
+		picked, err := input.PickEntry(config.Store, name)
+		if err != nil {
+			return err
+		}
+		if picked == "" {
+			return nil
+		}
+		name = picked
+	}
+
+	if name == "" {
+		return fmt.Errorf("entry name is required")
+	}
+
+	if !entryExists(config.Store, name) {
+		return fmt.Errorf("entry doesn't exist: %v", name)
+	}
+
+	contentBytes, err := decryptEntry(
+		config.AgentExecutable,
+		config.Expire,
+		config.Memlock,
+		config.Socket,
+		config.Identities,
+		config.Store,
+		name,
+	)
+	if err != nil {
+		return err
+	}
+	defer pago.Zero(contentBytes)
+	content := string(contentBytes)
+
+	isTOML := strings.HasPrefix(content, "# TOML")
+	if !isTOML {
+		return fmt.Errorf("entry %q is not a TOML entry", name)
+	}
+
+	var data map[string]any
+	if _, err := toml.Decode(content, &data); err != nil {
+		return fmt.Errorf("failed to parse entry as TOML: %w", err)
+	}
+
+	keys := make([]string, 0, len(data))
+	for k := range data {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		fmt.Println(k)
+	}
+
+	return nil
 }
 
 type PickCmd struct {

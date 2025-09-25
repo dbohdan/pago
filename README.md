@@ -283,8 +283,20 @@ pago show services/my-api-custom-default
 ```
 
 You can retrieve other values from the TOML entry using the `-k`/`--key` option with the commands `show`, `clip`, and `pick`, or with the `key` command.
+To see all available keys (sorted), use the `keys` command.
 
 ```shell
+# List all keys in the entry.
+pago keys services/my-api
+# => numbers
+# => password
+# => token
+# => url
+# => user
+
+# You can also pick an entry to list keys from.
+pago keys -p
+
 # Show the user from the TOML entry.
 pago show -k user services/my-api
 # => jdoe

@@ -871,6 +871,100 @@ foo = "string"`)
 	}
 }
 
+func TestKeys(t *testing.T) {
+	var buf bytes.Buffer
+
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		// Add a TOML entry.
+		cmd := exec.Command(commandPago, "--dir", dataDir, "add", "toml", "--multiline")
+		cmd.Stdin = strings.NewReader(`# TOML
+# Comment.
+password = "hunter2"
+foo = "string"
+bar = 5
+
+phi = 1.68
+# Another comment.
+baz = [1, 2, 3, true, false]
+qux = {"key" = "value"}
+`)
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+		if err != nil {
+			return stdout.String() + "\n" + stderr.String(), err
+		}
+
+		// Add a non-TOML entry.
+		_, _, err = runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "not-toml", "--random",
+		)
+		if err != nil {
+			return "", err
+		}
+
+		testCases := []struct {
+			entry    string
+			expected string
+			wantErr  bool
+		}{
+			{"toml", "bar\nbaz\nfoo\npassword\nphi\nqux", false},
+			{"not-toml", "", true},
+			{"nonexistent", "", true},
+			{"", "", true},
+		}
+
+		for _, tc := range testCases {
+			// List keys from the entry.
+			c, err := expect.NewConsole()
+			if err != nil {
+				return "", fmt.Errorf("failed to create console: %w", err)
+			}
+			defer c.Close()
+
+			buf.Reset()
+
+			var cmd *exec.Cmd
+			if tc.entry == "" {
+				cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "keys")
+			} else {
+				cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "keys", tc.entry)
+			}
+			cmd.Stdin = c.Tty()
+			cmd.Stdout = &buf
+			cmd.Stderr = c.Tty()
+
+			err = cmd.Start()
+			if err != nil {
+				return "", fmt.Errorf("failed to start command for entry %q: %w", tc.entry, err)
+			}
+
+			// Only expect password prompt if we are not expecting an error from pago before decryption.
+			if !tc.wantErr || tc.entry == "not-toml" {
+				_, _ = c.ExpectString("Enter password")
+				_, _ = c.SendLine(password)
+			}
+
+			err = cmd.Wait()
+			if (err != nil) != tc.wantErr {
+				return "", fmt.Errorf("command failed for entry %q: %w", tc.entry, err)
+			}
+
+			output := strings.TrimSpace(buf.String())
+			if !tc.wantErr && output != tc.expected {
+				return "", fmt.Errorf("for entry %q, expected %q, got %q", tc.entry, tc.expected, output)
+			}
+		}
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Command `keys` failed: %v (%q)", err, buf)
+	}
+}
+
 func TestShowOTP(t *testing.T) {
 	_, err := withPagoDir(func(dataDir string) (string, error) {
 		// Add a TOML entry with a 6-digit otpauth URI.
