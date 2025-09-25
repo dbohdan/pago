@@ -417,13 +417,15 @@ cap_mkdb /etc/login.conf
 ### Environment variables
 
 - `PAGO_AGENT`:
-  The agent executable
+  The agent executable.
+  Default: `pago-agent`.
 - `PAGO_CLIP`:
   The command to use to copy text to the clipboard.
   When empty (default), the command is determined automatically using [atotto/clipboard](https://github.com/atotto/clipboard).
 - `PAGO_CONFIRM`:
   Whether to ask for a new password twice for confirmation.
   `0` to disable.
+  Default: `1` (enabled).
 - `PAGO_DIR`:
   The pago data directory location.
   Defaults to:
@@ -433,17 +435,23 @@ cap_mkdb /etc/login.conf
   Agent expiration time after which it will automatically shut down ([Go duration string](https://pkg.go.dev/time#ParseDuration); for example, `1h30m`).
   Default: no expiration.
 - `PAGO_GIT`:
-  Whether to use Git
+  Whether to use Git.
+  `0` to disable.
+  Default: `1` (enabled).
 - `PAGO_LENGTH`:
-  The default length of random passwords
+  The default length of random passwords.
+  Default: `20`.
 - `PAGO_MEMLOCK`:
   Whether the agent should lock its memory using [mlockall(2)](https://pubs.opengroup.org/onlinepubs/9799919799/functions/mlockall.html) to prevent secrets from being written to swap.
   `0` to disable.
+  Default: `1` (enabled).
 - `PAGO_MOUSE`:
   Whether to enable mouse support in the interactive editor.
   `0` to disable.
+  Default: `1` (enabled).
 - `PAGO_PATTERN`:
-  The default character pattern (regular expression) for random passwords
+  The default character pattern (regular expression) for random passwords.
+  Default: `[A-Za-z0-9]`.
 - `PAGO_SOCK`:
   The agent socket path.
   The default path is determined by trying candidate paths until the parent directory of the pago directory exists.
@@ -457,7 +465,8 @@ cap_mkdb /etc/login.conf
     - macOS:
       - `${TMPDIR:-/tmp}/pago-${username}@${hostname}/socket`
 - `PAGO_TIMEOUT`:
-  The default timeout to clear the clipboard
+  The default timeout to clear the clipboard.
+  Default: `30` (seconds).
 
 ### Interactive editor
 
