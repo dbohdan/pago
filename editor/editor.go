@@ -97,15 +97,14 @@ func Edit(title, initial string, save, mouse bool) (string, error) {
 
 		case tcell.KeyHome:
 			if event.Modifiers()&tcell.ModCtrl != 0 {
-				// Go to the beginning of the buffer.
-				// Not implemented until upstream implements it.
+				textArea.Select(0, 0)
 				return nil
 			}
 
 		case tcell.KeyEnd:
 			if event.Modifiers()&tcell.ModCtrl != 0 {
-				// Go to the end of the buffer.
-				// Not implemented until upstream implements it.
+				length := textArea.GetTextLength()
+				textArea.Select(length, length)
 				return nil
 			}
 		}

@@ -501,8 +501,8 @@ It has the following key bindings:
 - **PgDn**/**Ctrl+F**: Page down
 - **Ctrl+←**/**Alt+B**: Move to the start of the word
 - **Ctrl+→**/**Alt-F**: Move to the end of the word
-<!-- - **Ctrl+Home**: Move to the start of the text -->
-<!-- - **Ctrl+End**: Move to the end of the text -->
+- **Ctrl+Home**: Move to the start of the text
+- **Ctrl+End**: Move to the end of the text
 
 #### Editing
 
