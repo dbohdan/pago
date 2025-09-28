@@ -188,14 +188,13 @@ func DecryptIdentities(identitiesPath string) (string, error) {
 		return "", fmt.Errorf("failed to read identities file: %v", err)
 	}
 
-	passwordBytes, err := input.SecureRead("Enter password to unlock identities: ")
+	password, err := input.SecureRead("Enter password to unlock identities: ")
 	if err != nil {
 		return "", fmt.Errorf("failed to read password: %v", err)
 	}
-	defer pago.Zero(passwordBytes)
 
 	// Create a passphrase-based identity and decrypt the private keys with it.
-	identity, err := age.NewScryptIdentity(string(passwordBytes))
+	identity, err := age.NewScryptIdentity(password)
 	if err != nil {
 		return "", fmt.Errorf("failed to create password-based identity: %v", err)
 	}
@@ -214,38 +213,38 @@ func DecryptIdentities(identitiesPath string) (string, error) {
 }
 
 // DecryptEntry decrypts a password entry from the store using identities from the identities file.
-func DecryptEntry(identitiesPath, passwordStore, name string) ([]byte, error) {
+func DecryptEntry(identitiesPath, passwordStore, name string) (string, error) {
 	file, err := pago.EntryFile(passwordStore, name)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	encryptedData, err := os.ReadFile(file)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read password file: %v", err)
+		return "", fmt.Errorf("failed to read password file: %v", err)
 	}
 
 	identitiesText, err := DecryptIdentities(identitiesPath)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	ids, err := ParseIdentities(identitiesText)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse identities: %v", err)
+		return "", fmt.Errorf("failed to parse identities: %v", err)
 	}
 
 	r, err := WrapDecrypt(bytes.NewReader(encryptedData), ids...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to decrypt: %v", err)
+		return "", fmt.Errorf("failed to decrypt: %v", err)
 	}
 
 	content, err := io.ReadAll(r)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read decrypted content: %v", err)
+		return "", fmt.Errorf("failed to read decrypted content: %v", err)
 	}
 
-	return content, nil
+	return string(content), nil
 }
 
 // EntryFile constructs the full file path for a given entry name in the store.

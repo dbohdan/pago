@@ -7,7 +7,6 @@ package input
 
 import (
 	"bufio"
-	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -50,7 +49,7 @@ func PickEntry(store string, query string) (string, error) {
 }
 
 // Read a password without echo if standard input is a terminal.
-func SecureRead(prompt string) ([]byte, error) {
+func SecureRead(prompt string) (string, error) {
 	fmt.Fprint(os.Stderr, prompt)
 
 	fd := int(os.Stdin.Fd())
@@ -58,24 +57,18 @@ func SecureRead(prompt string) ([]byte, error) {
 		password, err := term.ReadPassword(fd)
 		fmt.Fprintln(os.Stderr)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 
-		return password, nil
+		return string(password), nil
 	}
 
 	scanner := bufio.NewScanner(os.Stdin)
 	if !scanner.Scan() {
-		return nil, scanner.Err()
+		return "", scanner.Err()
 	}
 
-	// scanner.Bytes() returns a slice that is valid only until the next Scan().
-	// We need to copy it to ensure its persistence.
-	pass := scanner.Bytes()
-	passCopy := make([]byte, len(pass))
-	copy(passCopy, pass)
-
-	return passCopy, nil
+	return scanner.Text(), nil
 }
 
 // AskYesNo prompts the user with a yes/no question and returns their boolean answer.
@@ -111,27 +104,24 @@ func AskYesNo(prompt string) (bool, error) {
 
 // ReadNewPassword prompts the user to input a new password,
 // optionally asking for confirmation by re-entering it.
-func ReadNewPassword(confirm bool) ([]byte, error) {
+func ReadNewPassword(confirm bool) (string, error) {
 	pass, err := SecureRead("Enter password: ")
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	if len(pass) == 0 {
-		return nil, fmt.Errorf("empty password")
+		return "", fmt.Errorf("empty password")
 	}
 
 	if confirm {
 		pass2, err := SecureRead("Enter password (again): ")
 		if err != nil {
-			pago.Zero(pass)
-			return nil, err
+			return "", err
 		}
-		defer pago.Zero(pass2)
 
-		if !bytes.Equal(pass, pass2) {
-			pago.Zero(pass)
-			return nil, fmt.Errorf("passwords do not match")
+		if pass != pass2 {
+			return "", fmt.Errorf("passwords do not match")
 		}
 	}
 

@@ -160,12 +160,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 		if generate {
 			password, err = generatePassword(cmd.Pattern, cmd.Length)
 		} else {
-			var passwordBytes []byte
-			passwordBytes, err = input.ReadNewPassword(config.Confirm)
-			if err == nil {
-				defer pago.Zero(passwordBytes)
-				password = string(passwordBytes)
-			}
+			password, err = input.ReadNewPassword(config.Confirm)
 		}
 	}
 	if err != nil {
@@ -318,7 +313,7 @@ func englishPlural(singular, plural string, count int) string {
 }
 
 // decryptEntry decrypts a password entry, using the agent if available and configured.
-func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string) ([]byte, error) {
+func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string) (string, error) {
 	if agentSocket == "" {
 		// Agent is disabled, decrypt directly.
 		return crypto.DecryptEntry(identities, passwordStore, name)
@@ -326,32 +321,32 @@ func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemloc
 
 	file, err := pago.EntryFile(passwordStore, name)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	encryptedData, err := os.ReadFile(file)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read password file: %v", err)
+		return "", fmt.Errorf("failed to read password file: %v", err)
 	}
 
 	if err := agent.Ping(agentSocket); err != nil {
 		// If ping fails, attempt to start the agent.
 		identitiesText, err := crypto.DecryptIdentities(identities)
 		if err != nil {
-			return nil, err
+			return "", err
 		}
 
 		if err := agent.StartProcess(agentExecutable, agentExpire, agentMemlock, agentSocket, identitiesText); err != nil {
-			return nil, fmt.Errorf("failed to start agent: %v", err)
+			return "", fmt.Errorf("failed to start agent: %v", err)
 		}
 	}
 
 	content, err := agent.Decrypt(agentSocket, encryptedData)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
-	return content, nil
+	return string(content), nil
 }
 
 // isTOML returns whether content is a TOML entry.
@@ -383,12 +378,10 @@ func generateOTP(otpURL string) (string, error) {
 // getPassword decrypts an entry and returns its content, or a specific key's
 // value if it's a TOML entry.
 func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name, key string) (string, error) {
-	contentBytes, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
+	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
 	if err != nil {
 		return "", err
 	}
-	defer pago.Zero(contentBytes)
-	content := string(contentBytes)
 
 	if !isTOML(content) {
 		if key != "" {
@@ -606,7 +599,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 
 	if entryExists(config.Store, name) {
 		// Decrypt the existing entry content.
-		contentBytes, err := decryptEntry(
+		content, err = decryptEntry(
 			config.AgentExecutable,
 			config.Expire,
 			config.Memlock,
@@ -618,8 +611,6 @@ func (cmd *EditCmd) Run(config *Config) error {
 		if err != nil {
 			return err
 		}
-
-		content = string(contentBytes)
 	} else if !cmd.Force {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
@@ -742,13 +733,12 @@ func (cmd *InitCmd) Run(config *Config) error {
 	var buf bytes.Buffer
 	armorWriter := armor.NewWriter(&buf)
 
-	passwordBytes, err := input.ReadNewPassword(config.Confirm)
+	password, err := input.ReadNewPassword(config.Confirm)
 	if err != nil {
 		return fmt.Errorf("failed to read password: %v", err)
 	}
-	defer pago.Zero(passwordBytes)
 
-	recip, err := age.NewScryptRecipient(string(passwordBytes))
+	recip, err := age.NewScryptRecipient(password)
 	if err != nil {
 		return fmt.Errorf("failed to create scrypt recipient: %w", err)
 	}
@@ -964,16 +954,15 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 		return err
 	}
 
-	newPasswordBytes, err := input.ReadNewPassword(config.Confirm)
+	newPassword, err := input.ReadNewPassword(config.Confirm)
 	if err != nil {
 		return err
 	}
-	defer pago.Zero(newPasswordBytes)
 
 	var buf bytes.Buffer
 	armorWriter := armor.NewWriter(&buf)
 
-	recip, err := age.NewScryptRecipient(string(newPasswordBytes))
+	recip, err := age.NewScryptRecipient(newPassword)
 	if err != nil {
 		return fmt.Errorf("failed to create scrypt recipient: %w", err)
 	}
@@ -1005,12 +994,10 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 
 // getTOMLKeys decrypts a TOML entry and returns a sorted list of its keys.
 func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string) ([]string, error) {
-	contentBytes, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
+	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
 	if err != nil {
 		return nil, err
 	}
-	defer pago.Zero(contentBytes)
-	content := string(contentBytes)
 
 	if !isTOML(content) {
 		return nil, fmt.Errorf("%q is not a TOML entry; cannot list keys", name)
