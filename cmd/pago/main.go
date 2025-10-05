@@ -276,10 +276,10 @@ func (cmd *StopCmd) Run(config *Config) error {
 type ClipCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
-	Command string `short:"c" env:"${ClipEnv}" help:"Command for copying text from stdin to clipboard (${env})"`
-	Key     string `short:"k" help:"Retrieve a key from a TOML entry"`
-	Pick    bool   `short:"p" help:"Pick entry using fuzzy finder"`
-	Timeout int    `short:"t" env:"${TimeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable, ${env})"`
+	Command string   `short:"c" env:"${ClipEnv}" help:"Command for copying text from stdin to clipboard (${env})"`
+	Key     []string `short:"k" help:"Retrieve a key from a TOML entry (repeatable)"`
+	Pick    bool     `short:"p" help:"Pick entry using fuzzy finder"`
+	Timeout int      `short:"t" env:"${TimeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable, ${env})"`
 }
 
 // copyToClipboard executes a command to copy text to the system clipboard.
@@ -375,17 +375,30 @@ func generateOTP(otpURL string) (string, error) {
 	return code, nil
 }
 
+// quoteKeyPath formats a TOML key path for display in error messages.
+// It does so by quoting each key with %q and joining them with periods.
+// For example: []string{"a", "b"} becomes "a"."b"
+func quoteKeyPath(keys []string) string {
+	quoted := []string{}
+
+	for _, key := range keys {
+		quoted = append(quoted, fmt.Sprintf("%q", key))
+	}
+
+	return strings.Join(quoted, ".")
+}
+
 // getPassword decrypts an entry and returns its content, or a specific key's
 // value if it's a TOML entry.
-func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name, key string) (string, error) {
+func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string, keys []string) (string, error) {
 	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
 	if err != nil {
 		return "", err
 	}
 
 	if !isTOML(content) {
-		if key != "" {
-			return "", fmt.Errorf("%q is not a TOML entry; cannot use key", name)
+		if len(keys) > 0 {
+			return "", fmt.Errorf("%q is not a TOML entry; cannot use keys", name)
 		}
 
 		return content, nil
@@ -396,33 +409,44 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 		return "", fmt.Errorf("failed to parse entry as TOML: %w", err)
 	}
 
-	if key == "" {
-		key = "password"
+	effectiveKeys := keys
+	if len(effectiveKeys) == 0 {
+		key := pago.DefaultTOMLPasswordKey
 
-		if defaultKey, ok := data["default"]; ok {
+		if defaultKey, ok := data[pago.TOMLDefaultKey]; ok {
 			if defaultKeyStr, ok := defaultKey.(string); ok {
 				key = defaultKeyStr
 			} else {
-				return "", fmt.Errorf(`key "default" must have string value`)
+				return "", fmt.Errorf("key %q must have string value", pago.TOMLDefaultKey)
 			}
 		}
+		effectiveKeys = []string{key}
 	}
 
-	value, ok := data[key]
-	if !ok {
-		return "", fmt.Errorf("key %q not found in entry %q", key, name)
+	var value any = data
+	for i, key := range effectiveKeys {
+		currentMap, ok := value.(map[string]any)
+		if !ok {
+			return "", fmt.Errorf("value at key path %s is not a table", quoteKeyPath(effectiveKeys[:i]))
+		}
+
+		v, ok := currentMap[key]
+		if !ok {
+			return "", fmt.Errorf("key path %s not found in entry %q", quoteKeyPath(effectiveKeys[:i+1]), name)
+		}
+		value = v
 	}
 
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
 
 	case reflect.Map:
-		return "", fmt.Errorf("key %q in entry %q is a table", key, name)
+		return "", fmt.Errorf("key path %s in entry %q is a table", quoteKeyPath(effectiveKeys), name)
 
 	case reflect.String:
 		s := v.String()
 
-		if key == "otp" {
+		if len(effectiveKeys) > 0 && effectiveKeys[len(effectiveKeys)-1] == "otp" {
 			return generateOTP(s)
 		}
 
@@ -794,7 +818,7 @@ func (cmd *InitCmd) Run(config *Config) error {
 type PickCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
-	Key string `short:"k" help:"Retrieve a key from a TOML entry"`
+	Key []string `short:"k" help:"Retrieve a key from a TOML entry (repeatable)"`
 }
 
 func (cmd *PickCmd) Run(config *Config) error {
@@ -993,7 +1017,7 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 }
 
 // getTOMLKeys decrypts a TOML entry and returns a sorted list of its keys.
-func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string) ([]string, error) {
+func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string, keyPath []string) ([]string, error) {
 	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
 	if err != nil {
 		return nil, err
@@ -1008,8 +1032,30 @@ func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock
 		return nil, fmt.Errorf("failed to parse entry as TOML: %w", err)
 	}
 
-	keys := make([]string, 0, len(data))
-	for k := range data {
+	var value any = data
+	for i, key := range keyPath {
+		currentMap, ok := value.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("value at key path %s is not a table", quoteKeyPath(keyPath[:i]))
+		}
+
+		v, ok := currentMap[key]
+		if !ok {
+			return nil, fmt.Errorf("key path %s not found in entry %q", quoteKeyPath(keyPath[:i+1]), name)
+		}
+		value = v
+	}
+
+	currentMap, ok := value.(map[string]any)
+	if !ok {
+		if len(keyPath) > 0 {
+			return nil, fmt.Errorf("value at key path %s is not a table", quoteKeyPath(keyPath))
+		}
+		return nil, fmt.Errorf("entry %q is not a TOML table", name)
+	}
+
+	keys := make([]string, 0, len(currentMap))
+	for k := range currentMap {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
@@ -1020,9 +1066,9 @@ func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock
 type ShowCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
-	Key  string `short:"k" help:"Retrieve a key from a TOML entry" xor:"toml"`
-	Keys bool   `short:"K" help:"List keys in a TOML entry" xor:"toml"`
-	Pick bool   `short:"p" help:"Pick entry using fuzzy finder"`
+	Key  []string `short:"k" help:"Retrieve a key from a TOML entry (repeatable)"`
+	Keys bool     `short:"K" help:"List keys in a TOML entry"`
+	Pick bool     `short:"p" help:"Pick entry using fuzzy finder"`
 }
 
 func (cmd *ShowCmd) Run(config *Config) error {
@@ -1065,6 +1111,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 			config.Identities,
 			config.Store,
 			name,
+			cmd.Key,
 		)
 		if err != nil {
 			return err

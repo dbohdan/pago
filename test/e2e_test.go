@@ -720,7 +720,12 @@ bar = 5
 phi = 1.68
 # Another comment.
 baz = [1, 2, 3, true, false]
-qux = {"key" = "value"}
+
+[qux]
+key = "value"
+
+[qux.nested]
+deep = "secret"
 `)
 		var stdout, stderr bytes.Buffer
 		cmd.Stdout = &stdout
@@ -754,19 +759,22 @@ foo = "secret"
 
 		testCases := []struct {
 			entry    string
-			key      string
+			keys     []string
 			expected string
 			wantErr  bool
 		}{
-			{"toml", "", "hunter2", false},
-			{"toml", "foo", "string", false},
-			{"toml", "bar", "5", false},
-			{"toml", "phi", "1.68", false},
-			{"toml", "baz", "[1, 2, 3, true, false]", false},
-			{"toml", "qux", "", true}, // Tables cannot be retrieved.
-			{"toml", "nonexistent", "", true},
-			{"toml-default", "", "secret", false},
-			{"not-toml", "foo", "", true}, // Cannot use "--key" on non-TOML entries.
+			{"toml", nil, "hunter2", false},
+			{"toml", []string{"foo"}, "string", false},
+			{"toml", []string{"bar"}, "5", false},
+			{"toml", []string{"phi"}, "1.68", false},
+			{"toml", []string{"baz"}, "[1, 2, 3, true, false]", false},
+			{"toml", []string{"qux"}, "", true}, // Tables cannot be retrieved.
+			{"toml", []string{"qux", "key"}, "value", false},
+			{"toml", []string{"qux", "nested", "deep"}, "secret", false},
+			{"toml", []string{"qux", "nonexistent"}, "", true},
+			{"toml", []string{"nonexistent"}, "", true},
+			{"toml-default", nil, "secret", false},
+			{"not-toml", []string{"foo"}, "", true}, // Cannot use "--key" on non-TOML entries.
 		}
 
 		for _, tc := range testCases {
@@ -779,19 +787,20 @@ foo = "secret"
 
 			buf.Reset()
 
-			var cmd *exec.Cmd
-			if tc.key == "" {
-				cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", tc.entry)
-			} else {
-				cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "--key", tc.key, tc.entry)
+			args := []string{"--dir", dataDir, "--socket", "", "show"}
+			for _, k := range tc.keys {
+				args = append(args, "--key", k)
 			}
+			args = append(args, tc.entry)
+			cmd := exec.Command(commandPago, args...)
+
 			cmd.Stdin = c.Tty()
 			cmd.Stdout = &buf
 			cmd.Stderr = c.Tty()
 
 			err = cmd.Start()
 			if err != nil {
-				return "", fmt.Errorf("failed to start command for entry %q key %q: %w", tc.entry, tc.key, err)
+				return "", fmt.Errorf("failed to start command for entry %q keys %v: %w", tc.entry, tc.keys, err)
 			}
 
 			_, _ = c.ExpectString("Enter password")
@@ -799,12 +808,12 @@ foo = "secret"
 
 			err = cmd.Wait()
 			if (err != nil) != tc.wantErr {
-				return "", fmt.Errorf("command failed for entry %q key %q: %w", tc.entry, tc.key, err)
+				return "", fmt.Errorf("command failed for entry %q keys %v: %w", tc.entry, tc.keys, err)
 			}
 
 			output := strings.TrimSpace(buf.String())
 			if !tc.wantErr && output != tc.expected {
-				return "", fmt.Errorf("for entry %q key %q, expected %q, got %q", tc.entry, tc.key, tc.expected, output)
+				return "", fmt.Errorf("for entry %q keys %v, expected %q, got %q", tc.entry, tc.keys, tc.expected, output)
 			}
 		}
 
@@ -851,14 +860,17 @@ qux = {"key" = "value"}
 
 		testCases := []struct {
 			entry    string
+			args     []string
 			expected string
-			flag     string
 			wantErr  bool
 		}{
-			{"toml", "bar\nbaz\nfoo\npassword\nphi\nqux", "-K", false},
-			{"toml", "bar\nbaz\nfoo\npassword\nphi\nqux", "--keys", false},
-			{"not-toml", "", "-K", true},
-			{"nonexistent", "", "--keys", true},
+			{"toml", []string{"-K"}, "bar\nbaz\nfoo\npassword\nphi\nqux", false},
+			{"toml", []string{"--keys"}, "bar\nbaz\nfoo\npassword\nphi\nqux", false},
+			{"toml", []string{"-K", "-k", "qux"}, "key", false},
+			{"toml", []string{"--keys", "--key", "qux"}, "key", false},
+			{"not-toml", []string{"-K"}, "", true},
+			{"nonexistent", []string{"--keys"}, "", true},
+			{"", []string{"--keys"}, "", true},
 		}
 
 		for _, tc := range testCases {
@@ -871,12 +883,13 @@ qux = {"key" = "value"}
 
 			buf.Reset()
 
-			var cmd *exec.Cmd
-			if tc.entry == "" {
-				cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "--keys")
-			} else {
-				cmd = exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "--keys", tc.entry)
+			args := []string{"--dir", dataDir, "--socket", "", "show"}
+			args = append(args, tc.args...)
+			if tc.entry != "" {
+				args = append(args, tc.entry)
 			}
+			cmd := exec.Command(commandPago, args...)
+
 			cmd.Stdin = c.Tty()
 			cmd.Stdout = &buf
 			cmd.Stderr = c.Tty()

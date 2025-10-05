@@ -283,7 +283,9 @@ pago show services/my-api-custom-default
 ```
 
 You can retrieve other values from the TOML entry using the `-k`/`--key` option with `show`, `clip`, and `pick`.
+The option can be repeated to access nested keys.
 To see all available keys (sorted), use the `-K`/`--keys` option with `show`.
+You can combine this with `-k`/`--key` to list keys within a nested table.
 
 ```shell
 # List all keys in the entry.
@@ -294,12 +296,20 @@ pago show --keys services/my-api
 # => url
 # => user
 
+# List all keys in a nested table.
+pago show --keys -k table entry-with-table
+# => key
+
 # You can also pick an entry to list keys from.
 pago show -K -p
 
 # Show the user from the TOML entry.
 pago show -k user services/my-api
 # => jdoe
+
+# Show a nested key.
+pago show entry-with-table -k table -k key
+# => value
 
 # Show an array.
 pago show -k numbers services/my-api
@@ -311,7 +321,7 @@ pago clip -k key services/my-api
 
 When an entry is parsed as TOML, pago can retrieve scalar values (strings, numbers, booleans) and arrays of scalars.
 Arrays and scalars other than strings are encoded as TOML for output.
-pago cannot retrieve tables.
+pago cannot retrieve tables directly, but it can traverse them to access nested values.
 
 ### TOTP
 

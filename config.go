@@ -25,11 +25,15 @@ const (
 	Version          = "0.23.0"
 	WaitForSocket    = 3 * time.Second
 
+	// Configurable defaults.
 	DefaultAgent           = "pago-agent"
 	DefaultGitEmail        = "pago@localhost"
 	DefaultGitName         = "pago password manager"
 	DefaultPasswordLength  = "20"
 	DefaultPasswordPattern = "[A-Za-z0-9]"
+	// Not currently configurable.
+	DefaultTOMLPasswordKey = "password"
+	TOMLDefaultKey = "default"
 
 	AgentEnv    = "PAGO_AGENT"
 	ClipEnv     = "PAGO_CLIP"
