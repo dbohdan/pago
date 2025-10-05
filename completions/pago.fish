@@ -6,14 +6,15 @@
 # Command groups.
 set -l add_commands a add
 set -l clip_commands c clip
-set -l delete_commands d del delete
+set -l delete_commands d del delete rm
 set -l edit_commands e edit
+set -l find_commands f find
 set -l generate_commands g gen generate
 set -l pick_commands p pick
 set -l rename_commands mv r rename
 set -l show_commands s show
 set -l version_commands v ver version
-set -g __pago_cmd_groups $add_commands $clip_commands $delete_commands $edit_commands $generate_commands $pick_commands $rename_commands $show_commands $version_commands
+set -g __pago_cmd_groups $add_commands $clip_commands $delete_commands $edit_commands $find_commands $generate_commands $pick_commands $rename_commands $show_commands $version_commands
 
 function __pago_no_subcommand
     not __fish_seen_subcommand_from $__pago_cmd_groups
@@ -22,18 +23,22 @@ end
 complete -c pago -f
 
 # Commands without options.
-complete -c pago -n __pago_no_subcommand -a find -d "Find entry by name regex"
 complete -c pago -n __pago_no_subcommand -a init -d "Create a new password store"
 complete -c pago -n __pago_no_subcommand -a rekey -d "Reencrypt all entries with recipients file"
 complete -c pago -n __pago_no_subcommand -a rewrap -d "Change the password for the identities file"
-complete -c pago -n __pago_no_subcommand -a version -d "Print version number and exit"
 
 # Global options.
+complete -c pago -s a -l agent -d "Agent executable" -r
+complete -c pago -l confirm -d "Enter passwords twice"
 complete -c pago -l no-confirm -d "Don't enter passwords twice"
 complete -c pago -s d -l dir -d "Store location" -r
+complete -c pago -s e -l expire -d "Agent expiration time" -r
+complete -c pago -l git -d "Commit to Git"
 complete -c pago -l no-git -d "Don't commit to Git"
 complete -c pago -l git-email -d "Email for Git commits" -r
 complete -c pago -l git-name -d "Name for Git commits" -r
+complete -c pago -l memlock -d "Lock agent memory"
+complete -c pago -l no-memlock -d "Don't lock agent memory"
 complete -c pago -s s -l socket -d "Agent socket path" -r
 complete -c pago -s v -l verbose -d "Print debugging information"
 
@@ -53,6 +58,7 @@ end
 complete -c pago -n __pago_no_subcommand -a clip -d "Copy entry to clipboard"
 for cmd in $clip_commands
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s c -l command -d "Command for copying text from stdin to clipboard" -r
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -s k -l key -d "Retrieve a key from a TOML entry" -r
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s p -l pick -d "Pick entry using fuzzy finder"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s t -l timeout -d "Clipboard timeout" -r
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -a "(pago find)"
@@ -70,9 +76,16 @@ end
 complete -c pago -n __pago_no_subcommand -a edit -d "Edit password entry"
 for cmd in $edit_commands
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s f -l force -d "Create the entry if it doesn't exist"
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -l mouse -d "Enable mouse support in the editor"
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -l no-mouse -d "Disable mouse support in the editor"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s p -l pick -d "Pick entry using fuzzy finder"
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -l save -d "Allow saving edited entry"
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -l no-save -d "Disallow saving edited entry"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -a "(pago find)"
 end
+
+# `find` command options.
+complete -c pago -n __pago_no_subcommand -a find -d "Find entry by name regex"
 
 # `generate` command options.
 complete -c pago -n __pago_no_subcommand -a generate -d "Generate and print password"
@@ -84,6 +97,7 @@ end
 # `pick` command options.
 complete -c pago -n __pago_no_subcommand -a pick -d "Show password for a picked entry"
 for cmd in $pick_commands
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -s k -l key -d "Retrieve a key from a TOML entry" -r
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -a "(pago find)"
 end
 
@@ -96,6 +110,11 @@ end
 # `show` command options.
 complete -c pago -n __pago_no_subcommand -a show -d "Show password for entry or list entries"
 for cmd in $show_commands
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -s k -l key -d "Retrieve a key from a TOML entry" -r
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -s K -l keys -d "List keys in a TOML entry"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s p -l pick -d "Pick entry using fuzzy finder"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -a "(pago find)"
 end
+
+# `version` command options.
+complete -c pago -n __pago_no_subcommand -a version -d "Print version number and exit"

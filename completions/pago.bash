@@ -5,16 +5,17 @@
 
 # Command aliases and options.
 _pago_main_commands="add clip delete edit find generate init pick rekey rename rewrap show version"
-_pago_global_options="-d --dir --no-confirm --no-git --git-email --git-name -s --socket -v --verbose"
+_pago_global_options="-a --agent --confirm --no-confirm -d --dir -e --expire --git --no-git --git-email --git-name --memlock --no-memlock -s --socket -v --verbose"
 
 # Subcommand options.
 declare -A _pago_subcommand_options
 _pago_subcommand_options[add]="-l --length -p --pattern -f --force -i --input -m --multiline -r --random"
-_pago_subcommand_options[clip]="-c --command -p --pick -t --timeout"
+_pago_subcommand_options[clip]="-c --command -k --key -p --pick -t --timeout"
 _pago_subcommand_options[delete]="-f --force -p --pick"
-_pago_subcommand_options[edit]="-f --force -p --pick"
+_pago_subcommand_options[edit]="-f --force --mouse --no-mouse -p --pick --save --no-save"
 _pago_subcommand_options[generate]="-l --length -p --pattern"
-_pago_subcommand_options[show]="-p --pick"
+_pago_subcommand_options[pick]="-k --key"
+_pago_subcommand_options[show]="-k --key -K --keys -p --pick"
 
 # Fetch entries dynamically using `pago find`.
 _pago_find_entries() {
@@ -51,7 +52,7 @@ _pago_complete() {
     else
         # Complete subcommands or global options.
         case "$subcommand" in
-        a | add | c | clip | d | del | delete | rm | e | edit | g | gen | generate | p | pick | mv | r | rename | s | show)
+        a | add | c | clip | d | del | delete | rm | e | edit | f | find | g | gen | generate | p | pick | r | rename | mv | s | show)
             _pago_complete_subcommand_options "$subcommand"
             ;;
         *)
