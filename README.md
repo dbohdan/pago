@@ -5,7 +5,7 @@
 > Using pago carries a greater risk of bugs, security vulnerabilities, and data loss than using mature software.
 
 **pago** is a command-line password manager.
-It has the following built in:
+It has the following built-in features:
 - [age](https://github.com/FiloSottile/age) public-key and password encryption
 - Git version control of the password store ([go-git](https://github.com/go-git/go-git))
 - A fuzzy finder similar to [fzf](https://github.com/junegunn/fzf) for choosing entries ([go-fuzzyfinder](https://github.com/ktr0731/go-fuzzyfinder))
@@ -379,7 +379,7 @@ pago agent stop
 ### Memory locking
 
 pago-agent defaults to [locking the process memory](https://pubs.opengroup.org/onlinepubs/9699919799/functions/mlockall.html) to prevent secrets from being written to swap.
-Secrets can be recovered from unencrypted swap that was not erased at system shutdown.
+Secrets could be recovered from unencrypted swap that was not erased at system shutdown.
 
 pago-agent uses up to 100 MiB of memory on systems where it has been tested.
 Most operating systems don't allow a process to lock this much memory by default.
@@ -491,7 +491,7 @@ cap_mkdb /etc/login.conf
 ![Screenshot of the editor in a terminal showing a TOML entry.
 The TOML entry has a password "hunter2" and a test TOTP URL.](editor.svg)
 
-The editor is implemented as a text area from the [tview](https://github.com/rivo/tview) library.
+The editor is implemented using a text area from the [tview](https://github.com/rivo/tview) library.
 It has the following key bindings:
 
 #### Session
