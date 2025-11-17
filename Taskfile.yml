@@ -16,6 +16,7 @@ tasks:
   all:
     desc: 'Build and test everything'
     deps:
+      - build
       - test
 
   build:
@@ -46,10 +47,22 @@ tasks:
     generates:
       - pago-agent
 
+  check:
+    desc: 'Build, lint, and test everything'
+    deps:
+      - build
+      - lint
+      - test
+
   clean:
     desc: 'Clean up executables'
     cmds:
       - rm -f {{.pago_cmd_dir}}/pago{{.ext}} {{.pago_agent_cmd_dir}}/pago-agent{{.ext}}
+
+  lint:
+    desc: 'Run golangci-lint'
+    cmds:
+      - golangci-lint run
 
   release:
     desc: 'Prepare a release'

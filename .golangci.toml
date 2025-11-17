@@ -1,0 +1,205 @@
+version = "2"
+
+[linters]
+default = "standard"
+enable = [
+    # "arangolint",
+    "asasalint",
+    "asciicheck",
+    "bidichk",
+    "bodyclose",
+    "canonicalheader",
+    "containedctx",
+    "contextcheck",
+    "copyloopvar",
+    # "cyclop",
+    "decorder",
+    # "depguard",
+    "dogsled",
+    "dupl",
+    # "dupword",
+    "durationcheck",
+    "embeddedstructfieldcheck",
+    # "err113",
+    "errcheck",
+    "errchkjson",
+    "errname",
+    "errorlint",
+    "exhaustive",
+    "exhaustruct",
+    "exptostd",
+    "fatcontext",
+    # "forbidigo",
+    "forcetypeassert",
+    "funcorder",
+    # "funlen",
+    "ginkgolinter",
+    "gocheckcompilerdirectives",
+    # "gochecknoglobals",
+    "gochecknoinits",
+    "gochecksumtype",
+    # "gocognit",
+    "goconst",
+    "gocritic",
+    # "gocyclo",
+    "godoclint",
+    "godot",
+    "godox",
+    "goheader",
+    "gomoddirectives",
+    "gomodguard",
+    "goprintffuncname",
+    "gosec",
+    "gosmopolitan",
+    "govet",
+    "grouper",
+    "iface",
+    "importas",
+    "inamedparam",
+    "ineffassign",
+    "interfacebloat",
+    "intrange",
+    "iotamixing",
+    "ireturn",
+    # "lll",
+    "loggercheck",
+    # "maintidx",
+    "makezero",
+    "mirror",
+    "misspell",
+    "mnd",
+    "modernize",
+    "musttag",
+    "nakedret",
+    "nestif",
+    "nilerr",
+    "nilnesserr",
+    "nilnil",
+    "nlreturn",
+    # "noctx",
+    # "noinlineerr",
+    "nolintlint",
+    "nonamedreturns",
+    "nosprintfhostport",
+    "paralleltest",
+    "perfsprint",
+    "prealloc",
+    "predeclared",
+    "promlinter",
+    "protogetter",
+    "reassign",
+    "recvcheck",
+    "revive",
+    "rowserrcheck",
+    "sloglint",
+    "spancheck",
+    "sqlclosecheck",
+    "staticcheck",
+    # "tagalign",
+    "tagliatelle",
+    "testableexamples",
+    "testifylint",
+    "testpackage",
+    "thelper",
+    "tparallel",
+    "unconvert",
+    "unparam",
+    "unqueryvet",
+    "unused",
+    "usestdlibvars",
+    "usetesting",
+    "varnamelen",
+    "wastedassign",
+    "whitespace",
+    "wrapcheck",
+    "wsl_v5",
+    "zerologlint",
+]
+
+[linters.settings.exhaustive]
+default-signifies-exhaustive = true
+
+[linters.settings.exhaustruct]
+allow-empty = true
+exclude = [
+    '.*/kong.HelpOptions$',
+]
+
+[linters.settings.ireturn]
+allow = [
+    "anon",
+    "empty",
+    "error",
+    "stdlib",
+
+    "starlark.Value",
+]
+
+[linters.settings.lll]
+tab-width = 4
+line-length = 120
+
+[linters.settings.varnamelen]
+ignore-decls = [
+    "b byte",
+    "b []byte",
+    "d time.Duration",
+    "f *os.File",
+    "i int",
+    "in *os.File",
+    "in io.Reader",
+    "j int",
+    "k int",
+    "n int",
+    "ok bool",
+    "out *os.File",
+    "out io.Writer",
+    "r io.Reader",
+    "s string",
+    "t time.Time",
+    "v reflect.Value",
+    "w io.Writer",
+    "w io.WriteCloser",
+]
+
+[linters.settings.wsl_v5]
+disable = [
+    "decl",
+]
+
+[linters.settings.wrapcheck]
+ignore-package-globs = [
+    "io",
+    "os",
+    "os/*",
+
+    "dbohdan.com/*",
+    "filippo.io/*",
+]
+
+[linters.exclusions]
+generated = "lax"
+paths = [
+    "test",
+]
+presets = [
+    "comments",
+    "common-false-positives",
+    "legacy",
+    "std-error-handling",
+]
+
+[formatters]
+enable = [
+    "gofmt",
+    "goimports",
+]
+
+[formatters.exclusions]
+generated = "lax"
+
+[output]
+sort-order = [
+    "file",
+    "linter",
+]
