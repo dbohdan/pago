@@ -6,6 +6,7 @@
 package pago
 
 import (
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -19,21 +20,30 @@ const (
 	AgeExt           = ".age"
 	AgentSocketPath  = "socket"
 	DirPerms         = 0o700
-	ExitMemlockError = 3
 	FilePerms        = 0o600
+	MaxStepsPerChar  = 1000 // Maximum attempts to find a random character matching apattern.
 	NameInvalidChars = `[\n]`
+	StorePath        = "store"
 	Version          = "0.23.0"
 	WaitForSocket    = 3 * time.Second
 
+	ExitOK           = 0
+	ExitError        = 1
+	ExitBadUsage     = 2
+	ExitMemlockError = 3
+
 	// Configurable defaults.
+
 	DefaultAgent           = "pago-agent"
 	DefaultGitEmail        = "pago@localhost"
 	DefaultGitName         = "pago password manager"
 	DefaultPasswordLength  = "20"
-	DefaultPasswordPattern = "[A-Za-z0-9]"
+	DefaultPasswordPattern = "[A-Za-z0-9]" //nolint:gosec
+
 	// Not currently configurable.
+
 	DefaultTOMLPasswordKey = "password"
-	TOMLDefaultKey = "default"
+	TOMLDefaultKey         = "default"
 
 	AgentEnv    = "PAGO_AGENT"
 	ClipEnv     = "PAGO_CLIP"
@@ -61,12 +71,12 @@ var (
 func DefaultSocket() (string, error) {
 	currentUser, err := user.Current()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get current user: %w", err)
 	}
 
 	hostname, err := os.Hostname()
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get hostname: %w", err)
 	}
 
 	// Build candidate directories in priority order.
@@ -89,9 +99,11 @@ func DefaultSocket() (string, error) {
 
 	// Find the first candidate that exists.
 	var runtimeDir string
+
 	for _, candidateDir := range candidates {
 		if _, err := os.Stat(candidateDir); err == nil {
 			runtimeDir = candidateDir
+
 			break
 		}
 	}
@@ -102,5 +114,5 @@ func DefaultSocket() (string, error) {
 		subdir = "pago-" + currentUser.Username + "@" + hostname
 	}
 
-	return filepath.Join(runtimeDir, subdir, "socket"), nil
+	return filepath.Join(runtimeDir, subdir, AgentSocketPath), nil
 }

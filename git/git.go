@@ -18,7 +18,7 @@ import (
 func InitRepo(repoDir string) error {
 	_, err := gogit.PlainInit(repoDir, false)
 	if err != nil {
-		return fmt.Errorf("failed to initialize Git repository: %v", err)
+		return fmt.Errorf("failed to initialize Git repository: %w", err)
 	}
 
 	return nil
@@ -28,27 +28,28 @@ func InitRepo(repoDir string) error {
 func Commit(repoDir, authorName, authorEmail, message string, add []string) error {
 	repo, err := gogit.PlainOpen(repoDir)
 	if err != nil {
-		return fmt.Errorf("failed to open Git repository: %v", err)
+		return fmt.Errorf("failed to open Git repository: %w", err)
 	}
 
-	w, err := repo.Worktree()
+	worktree, err := repo.Worktree()
 	if err != nil {
-		return fmt.Errorf("failed to get worktree: %v", err)
+		return fmt.Errorf("failed to get worktree: %w", err)
 	}
 
 	for _, name := range add {
 		relPath, err := filepath.Rel(repoDir, name)
 		if err != nil {
-			return fmt.Errorf("failed to get relative path: %v", err)
+			return fmt.Errorf("failed to get relative path: %w", err)
 		}
 
-		_, err = w.Add(relPath)
+		_, err = worktree.Add(relPath)
 		if err != nil {
-			return fmt.Errorf("failed to stage file: %v", err)
+			return fmt.Errorf("failed to stage file: %w", err)
 		}
 	}
 
-	_, err = w.Commit(message, &gogit.CommitOptions{
+	//nolint:exhaustruct
+	_, err = worktree.Commit(message, &gogit.CommitOptions{
 		Author: &object.Signature{
 			Name:  authorName,
 			Email: authorEmail,
@@ -56,7 +57,7 @@ func Commit(repoDir, authorName, authorEmail, message string, add []string) erro
 		},
 	})
 	if err != nil {
-		return fmt.Errorf("failed to commit: %v", err)
+		return fmt.Errorf("failed to commit: %w", err)
 	}
 
 	return nil

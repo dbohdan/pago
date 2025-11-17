@@ -29,7 +29,7 @@ func DirTree(root string, transform func(name string, info os.FileInfo) (bool, s
 
 		name, err = filepath.Abs(name)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get absolute path: %w", err)
 		}
 
 		keep, displayName := transform(name, info)
@@ -39,6 +39,7 @@ func DirTree(root string, transform func(name string, info os.FileInfo) (bool, s
 
 		if len(visited) == 0 {
 			visited[name] = tree
+
 			return nil
 		}
 
@@ -59,7 +60,7 @@ func DirTree(root string, transform func(name string, info os.FileInfo) (bool, s
 		return nil
 	})
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to walk directory: %w", err)
 	}
 
 	return tree.String(), nil
@@ -68,7 +69,7 @@ func DirTree(root string, transform func(name string, info os.FileInfo) (bool, s
 // PrintStoreTree prints a tree-like representation of the password store.
 // It filters out hidden files and appends a "/" to directory names.
 func PrintStoreTree(store string) error {
-	tree, err := DirTree(store, func(name string, info os.FileInfo) (bool, string) {
+	tree, err := DirTree(store, func(_ string, info os.FileInfo) (bool, string) {
 		if strings.HasPrefix(info.Name(), ".") {
 			return false, ""
 		}
@@ -81,9 +82,10 @@ func PrintStoreTree(store string) error {
 		return true, displayName
 	})
 	if err != nil {
-		return fmt.Errorf("failed to build tree: %v", err)
+		return fmt.Errorf("failed to build tree: %w", err)
 	}
 
 	fmt.Print(tree)
+
 	return nil
 }

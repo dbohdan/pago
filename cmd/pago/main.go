@@ -92,11 +92,6 @@ type Config struct {
 	Verbose         bool
 }
 
-const (
-	maxStepsPerChar = 1000 // Maximum attempts to find a random character matching the pattern.
-	storePath       = "store"
-)
-
 type AddCmd struct {
 	Name string `arg:"" help:"Name of the password entry"`
 
@@ -116,7 +111,19 @@ func printRepr(value any) {
 		repr.OmitEmpty(false),
 		repr.OmitZero(false),
 	)
+
 	fmt.Fprintf(os.Stderr, "%s\n\n", valueRepr)
+}
+
+func readMultiline() (string, error) {
+	fmt.Fprintln(os.Stderr, "Reading from stdin until EOF:")
+
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, os.Stdin); err != nil {
+		return "", fmt.Errorf("failed to read from stdin: %w", err)
+	}
+
+	return buf.String(), nil
 }
 
 func (cmd *AddCmd) Run(config *Config) error {
@@ -126,7 +133,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 
 	file, err := pago.EntryFile(config.Store, cmd.Name)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get entry file path: %w", err)
 	}
 
 	if !cmd.Force && entryExists(config.Store, cmd.Name) {
@@ -135,15 +142,9 @@ func (cmd *AddCmd) Run(config *Config) error {
 
 	var password string
 
+	//nolint:nestif
 	if cmd.Multiline {
-		fmt.Fprintln(os.Stderr, "Reading from stdin until EOF:")
-
-		var buf bytes.Buffer
-		if _, err := io.Copy(&buf, os.Stdin); err != nil {
-			return fmt.Errorf("failed to read from stdin: %v", err)
-		}
-
-		password = buf.String()
+		password, err = readMultiline()
 	} else {
 		// Determine whether to generate a random password or prompt for manual input.
 		var generate bool
@@ -153,7 +154,7 @@ func (cmd *AddCmd) Run(config *Config) error {
 		} else {
 			generate, err = input.AskYesNo("Generate a password?")
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to ask for password generation: %w", err)
 			}
 		}
 
@@ -163,12 +164,13 @@ func (cmd *AddCmd) Run(config *Config) error {
 			password, err = input.ReadNewPassword(config.Confirm)
 		}
 	}
+
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get password: %w", err)
 	}
 
 	if err := crypto.SaveEntry(config.Recipients, config.Store, cmd.Name, password); err != nil {
-		return err
+		return fmt.Errorf("failed to save entry: %w", err)
 	}
 
 	if config.Git {
@@ -179,11 +181,12 @@ func (cmd *AddCmd) Run(config *Config) error {
 			fmt.Sprintf("add %q", cmd.Name),
 			[]string{file},
 		); err != nil {
-			return err
+			return fmt.Errorf("failed to commit to Git: %w", err)
 		}
 	}
 
 	fmt.Fprintln(os.Stderr, "Entry saved")
+
 	return nil
 }
 
@@ -205,7 +208,7 @@ func (cmd *RestartCmd) Run(config *Config) error {
 
 	identitiesText, err := crypto.DecryptIdentities(config.Identities)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decrypt identities: %w", err)
 	}
 
 	return agent.StartProcess(
@@ -226,12 +229,12 @@ func (cmd *StartCmd) Run(config *Config) error {
 
 	// Check if an agent is already running.
 	if err := agent.Ping(config.Socket); err == nil {
-		return fmt.Errorf("found agent responding on socket")
+		return errors.New("found agent responding on socket")
 	}
 
 	identitiesText, err := crypto.DecryptIdentities(config.Identities)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decrypt identities: %w", err)
 	}
 
 	return agent.StartProcess(
@@ -245,6 +248,7 @@ func (cmd *StartCmd) Run(config *Config) error {
 
 type StatusCmd struct{}
 
+//nolint:unparam
 func (cmd *StatusCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
@@ -253,13 +257,13 @@ func (cmd *StatusCmd) Run(config *Config) error {
 	err := agent.Ping(config.Socket)
 	if err == nil {
 		fmt.Println("Ping successful")
-		os.Exit(0)
-	} else {
-		fmt.Println("Failed to ping agent")
-		os.Exit(1)
+		os.Exit(pago.ExitOK)
 	}
 
-	return nil // This line is unreachable.
+	fmt.Println("Failed to ping agent")
+	os.Exit(pago.ExitError)
+
+	return nil // Never reached.
 }
 
 type StopCmd struct{}
@@ -270,7 +274,11 @@ func (cmd *StopCmd) Run(config *Config) error {
 	}
 
 	_, err := agent.Message(config.Socket, "SHUTDOWN")
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to send shutdown message: %w", err)
+	}
+
+	return nil
 }
 
 type ClipCmd struct {
@@ -285,19 +293,20 @@ type ClipCmd struct {
 // copyToClipboard executes a command to copy text to the system clipboard.
 func copyToClipboard(command string, text string) error {
 	if command == "" {
-		return clipboard.WriteAll(text)
+		return fmt.Errorf("failed to write to clipboard: %w", clipboard.WriteAll(text))
 	}
 
 	args, err := shlex.Split(command, true)
 	if err != nil {
-		return fmt.Errorf("failed to split clipboard command: %v", err)
+		return fmt.Errorf("failed to split clipboard command: %w", err)
 	}
 
+	//nolint:gosec
 	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdin = strings.NewReader(text)
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to run clipboard command: %v", err)
+		return fmt.Errorf("failed to run clipboard command: %w", err)
 	}
 
 	return nil
@@ -321,29 +330,29 @@ func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemloc
 
 	file, err := pago.EntryFile(passwordStore, name)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get entry file path: %w", err)
 	}
 
 	encryptedData, err := os.ReadFile(file)
 	if err != nil {
-		return "", fmt.Errorf("failed to read password file: %v", err)
+		return "", fmt.Errorf("failed to read password file: %w", err)
 	}
 
 	if err := agent.Ping(agentSocket); err != nil {
 		// If ping fails, attempt to start the agent.
 		identitiesText, err := crypto.DecryptIdentities(identities)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to decrypt identities: %w", err)
 		}
 
 		if err := agent.StartProcess(agentExecutable, agentExpire, agentMemlock, agentSocket, identitiesText); err != nil {
-			return "", fmt.Errorf("failed to start agent: %v", err)
+			return "", fmt.Errorf("failed to start agent: %w", err)
 		}
 	}
 
 	content, err := agent.Decrypt(agentSocket, encryptedData)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to decrypt entry: %w", err)
 	}
 
 	return string(content), nil
@@ -363,8 +372,10 @@ func generateOTP(otpURL string) (string, error) {
 
 	opts := totp.ValidateOpts{
 		Period:    uint(otpKey.Period()),
+		Skew:      0,
 		Digits:    otpKey.Digits(),
 		Algorithm: otpKey.Algorithm(),
+		Encoder:   "",
 	}
 
 	code, err := totp.GenerateCodeCustom(otpKey.Secret(), time.Now(), opts)
@@ -377,7 +388,7 @@ func generateOTP(otpURL string) (string, error) {
 
 // quoteKeyPath formats a TOML key path for display in error messages.
 // It does so by quoting each key with %q and joining them with periods.
-// For example: []string{"a", "b"} becomes "a"."b"
+// For example: []string{"a", "b"} becomes "a"."b".
 func quoteKeyPath(keys []string) string {
 	quoted := []string{}
 
@@ -393,7 +404,7 @@ func quoteKeyPath(keys []string) string {
 func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string, keys []string) (string, error) {
 	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to decrypt entry: %w", err)
 	}
 
 	if !isTOML(content) {
@@ -420,6 +431,7 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 				return "", fmt.Errorf("key %q must have string value", pago.TOMLDefaultKey)
 			}
 		}
+
 		effectiveKeys = []string{key}
 	}
 
@@ -434,12 +446,12 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 		if !ok {
 			return "", fmt.Errorf("key path %s not found in entry %q", quoteKeyPath(effectiveKeys[:i+1]), name)
 		}
+
 		value = v
 	}
 
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
-
 	case reflect.Map:
 		return "", fmt.Errorf("key path %s in entry %q is a table", quoteKeyPath(effectiveKeys), name)
 
@@ -451,12 +463,16 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 		}
 
 		return s, nil
+
+	default:
+		// Do nothing.
 	}
 
 	var buf bytes.Buffer
+
 	err = toml.NewEncoder(&buf).Encode(value)
 	if err != nil {
-		return "", fmt.Errorf("failed to encode decoded value: %v", err)
+		return "", fmt.Errorf("failed to encode decoded value: %w", err)
 	}
 
 	return buf.String(), nil
@@ -471,11 +487,13 @@ func (cmd *ClipCmd) Run(config *Config) error {
 	if cmd.Pick {
 		picked, err := input.PickEntry(config.Store, name)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to pick entry: %w", err)
 		}
+
 		if picked == "" {
 			return nil
 		}
+
 		name = picked
 	}
 
@@ -494,11 +512,11 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		cmd.Key,
 	)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get password: %w", err)
 	}
 
 	if err := copyToClipboard(cmd.Command, password); err != nil {
-		return fmt.Errorf("failed to copy password to clipboard: %v", err)
+		return fmt.Errorf("failed to copy password to clipboard: %w", err)
 	}
 
 	timeout := time.Duration(cmd.Timeout) * time.Second
@@ -511,8 +529,9 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		)
 
 		time.Sleep(timeout)
+
 		if err := copyToClipboard(cmd.Command, ""); err != nil {
-			return fmt.Errorf("failed to clear clipboard: %v", err)
+			return fmt.Errorf("failed to clear clipboard: %w", err)
 		}
 	}
 
@@ -548,11 +567,13 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 	if cmd.Pick {
 		picked, err := input.PickEntry(config.Store, name)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to pick entry: %w", err)
 		}
+
 		if picked == "" {
 			return nil
 		}
+
 		name = picked
 	}
 
@@ -562,17 +583,21 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 
 	if !cmd.Force {
 		if choice, err := input.AskYesNo(fmt.Sprintf("Delete entry '%s'?", name)); !choice || err != nil {
-			return err
+			if err != nil {
+				return fmt.Errorf("failed to confirm deletion: %w", err)
+			}
+
+			return nil
 		}
 	}
 
 	file, err := pago.EntryFile(config.Store, name)
 	if err != nil {
-		return nil
+		return fmt.Errorf("failed to get entry file path: %w", err)
 	}
 
 	if err := os.Remove(file); err != nil {
-		return fmt.Errorf("failed to delete entry: %v", err)
+		return fmt.Errorf("failed to delete entry: %w", err)
 	}
 
 	removeEmptyParentDirs(config.Store, filepath.Dir(file))
@@ -585,7 +610,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 			fmt.Sprintf("remove %q", name),
 			[]string{file},
 		); err != nil {
-			return err
+			return fmt.Errorf("failed to commit to Git: %w", err)
 		}
 	}
 
@@ -610,11 +635,13 @@ func (cmd *EditCmd) Run(config *Config) error {
 	if cmd.Pick {
 		picked, err := input.PickEntry(config.Store, name)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to pick entry: %w", err)
 		}
+
 		if picked == "" {
 			return nil
 		}
+
 		name = picked
 	}
 
@@ -633,32 +660,33 @@ func (cmd *EditCmd) Run(config *Config) error {
 			name,
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to decrypt entry: %w", err)
 		}
 	} else if !cmd.Force {
 		return fmt.Errorf("entry doesn't exist: %v", name)
 	}
 
 	newContent, err := editor.Edit(name, content, cmd.Save, cmd.Mouse)
-	if err != nil && !errors.Is(err, editor.CancelError) {
-		return fmt.Errorf("editor failed: %v", err)
+	if err != nil && !errors.Is(err, editor.ErrCancel) {
+		return fmt.Errorf("editor failed: %w", err)
 	}
 
 	fmt.Println()
 
-	if newContent == content || errors.Is(err, editor.CancelError) {
+	if newContent == content || errors.Is(err, editor.ErrCancel) {
 		fmt.Fprintln(os.Stderr, "No changes made")
+
 		return nil
 	}
 
 	// Save the edited entry.
 	if err := crypto.SaveEntry(config.Recipients, config.Store, name, newContent); err != nil {
-		return err
+		return fmt.Errorf("failed to save entry: %w", err)
 	}
 
 	file, err := pago.EntryFile(config.Store, cmd.Name)
 	if err != nil {
-		return nil
+		return fmt.Errorf("failed to get entry file path: %w", err)
 	}
 
 	if config.Git {
@@ -669,11 +697,12 @@ func (cmd *EditCmd) Run(config *Config) error {
 			fmt.Sprintf("edit %q", name),
 			[]string{file},
 		); err != nil {
-			return err
+			return fmt.Errorf("failed to commit to Git: %w", err)
 		}
 	}
 
 	fmt.Fprintln(os.Stderr, "Entry updated")
+
 	return nil
 }
 
@@ -688,15 +717,16 @@ func (cmd *FindCmd) Run(config *Config) error {
 
 	pattern, err := regexp.Compile(cmd.Pattern)
 	if err != nil {
-		return fmt.Errorf("failed to compile regular expression: %v", err)
+		return fmt.Errorf("failed to compile regular expression: %w", err)
 	}
 
 	list, err := pago.ListFiles(config.Store, pago.EntryFilter(config.Store, pattern))
 	if err != nil {
-		return fmt.Errorf("failed to search entries: %v", err)
+		return fmt.Errorf("failed to search entries: %w", err)
 	}
 
 	fmt.Println(strings.Join(list, "\n"))
+
 	return nil
 }
 
@@ -712,9 +742,11 @@ func (cmd *GenerateCmd) Run(config *Config) error {
 
 	password, err := generatePassword(cmd.Pattern, cmd.Length)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to generate password: %w", err)
 	}
+
 	fmt.Println(password)
+
 	return nil
 }
 
@@ -724,6 +756,7 @@ type InfoCmd struct {
 
 type DirCmd struct{}
 
+//nolint:unparam
 func (cmd *DirCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
@@ -742,10 +775,11 @@ func (cmd *InitCmd) Run(config *Config) error {
 	}
 
 	if pathExists(config.Identities) {
-		return fmt.Errorf("identities file already exists")
+		return errors.New("identities file already exists")
 	}
+
 	if pathExists(config.Recipients) {
-		return fmt.Errorf("recipients file already exists")
+		return errors.New("recipients file already exists")
 	}
 
 	identity, err := age.GenerateX25519Identity()
@@ -759,7 +793,7 @@ func (cmd *InitCmd) Run(config *Config) error {
 
 	password, err := input.ReadNewPassword(config.Confirm)
 	if err != nil {
-		return fmt.Errorf("failed to read password: %v", err)
+		return fmt.Errorf("failed to read password: %w", err)
 	}
 
 	recip, err := age.NewScryptRecipient(password)
@@ -780,12 +814,13 @@ func (cmd *InitCmd) Run(config *Config) error {
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("failed to close encrypted writer: %w", err)
 	}
+
 	if err := armorWriter.Close(); err != nil {
 		return fmt.Errorf("failed to close armor writer: %w", err)
 	}
 
 	if err := os.MkdirAll(config.Store, pago.DirPerms); err != nil {
-		return fmt.Errorf("failed to create store directory: %v", err)
+		return fmt.Errorf("failed to create store directory: %w", err)
 	}
 
 	if err := os.WriteFile(config.Identities, buf.Bytes(), pago.FilePerms); err != nil {
@@ -798,7 +833,7 @@ func (cmd *InitCmd) Run(config *Config) error {
 
 	if config.Git {
 		if err := git.InitRepo(config.Store); err != nil {
-			return err
+			return fmt.Errorf("failed to initialize Git repository: %w", err)
 		}
 
 		if err := git.Commit(
@@ -808,7 +843,7 @@ func (cmd *InitCmd) Run(config *Config) error {
 			"Initial commit",
 			[]string{config.Recipients},
 		); err != nil {
-			return err
+			return fmt.Errorf("failed to commit to Git: %w", err)
 		}
 	}
 
@@ -823,7 +858,8 @@ type PickCmd struct {
 
 func (cmd *PickCmd) Run(config *Config) error {
 	// This command is a shortcut for "show --pick".
-	showCmd := &ShowCmd{Name: cmd.Name, Key: cmd.Key, Pick: true}
+	showCmd := &ShowCmd{Name: cmd.Name, Key: cmd.Key, Keys: false, Pick: true}
+
 	return showCmd.Run(config)
 }
 
@@ -837,49 +873,50 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 	// Get a list of all password entries.
 	entries, err := pago.ListFiles(config.Store, pago.EntryFilter(config.Store, nil))
 	if err != nil {
-		return fmt.Errorf("failed to list passwords: %v", err)
+		return fmt.Errorf("failed to list passwords: %w", err)
 	}
 
 	if len(entries) == 0 {
-		return fmt.Errorf("no password entries found")
+		return errors.New("no password entries found")
 	}
 
 	// Decrypt the identities once to avoid repeated password prompts.
 	identitiesText, err := crypto.DecryptIdentities(config.Identities)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decrypt identities: %w", err)
 	}
 
 	ids, err := crypto.ParseIdentities(identitiesText)
 	if err != nil {
-		return fmt.Errorf("failed to parse identities: %v", err)
+		return fmt.Errorf("failed to parse identities: %w", err)
 	}
 
 	// Decrypt each entry using the loaded identities and re-encrypt it with the current recipients.
 	count := 0
+
 	for _, entry := range entries {
 		file, err := crypto.EntryFile(config.Store, entry)
 		if err != nil {
-			return fmt.Errorf("failed to get path for %q: %v", entry, err)
+			return fmt.Errorf("failed to get path for %q: %w", entry, err)
 		}
 
 		encryptedData, err := os.ReadFile(file)
 		if err != nil {
-			return fmt.Errorf("failed to read password file %q: %v", entry, err)
+			return fmt.Errorf("failed to read password file %q: %w", entry, err)
 		}
 
 		r, err := crypto.WrapDecrypt(bytes.NewReader(encryptedData), ids...)
 		if err != nil {
-			return fmt.Errorf("failed to decrypt %q: %v", entry, err)
+			return fmt.Errorf("failed to decrypt %q: %w", entry, err)
 		}
 
 		passwordBytes, err := io.ReadAll(r)
 		if err != nil {
-			return fmt.Errorf("failed to read decrypted content from %q: %v", entry, err)
+			return fmt.Errorf("failed to read decrypted content from %q: %w", entry, err)
 		}
 
 		if err := crypto.SaveEntry(config.Recipients, config.Store, entry, string(passwordBytes)); err != nil {
-			return fmt.Errorf("failed to reencrypt %q: %v", entry, err)
+			return fmt.Errorf("failed to reencrypt %q: %w", entry, err)
 		}
 
 		count++
@@ -892,7 +929,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 		for i, entry := range entries {
 			file, err := crypto.EntryFile(config.Store, entry)
 			if err != nil {
-				return fmt.Errorf("failed to get path for %q: %v", entry, err)
+				return fmt.Errorf("failed to get path for %q: %w", entry, err)
 			}
 
 			files[i] = file
@@ -905,7 +942,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 			fmt.Sprintf("reencrypt %d %s", count, englishPlural("entry", "entries", count)),
 			files,
 		); err != nil {
-			return err
+			return fmt.Errorf("failed to commit to Git: %w", err)
 		}
 	}
 
@@ -932,20 +969,20 @@ func (cmd *RenameCmd) Run(config *Config) error {
 
 	oldFile, err := pago.EntryFile(config.Store, cmd.OldName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get old entry file path: %w", err)
 	}
 
 	newFile, err := pago.EntryFile(config.Store, cmd.NewName)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get new entry file path: %w", err)
 	}
 
 	if err := os.MkdirAll(filepath.Dir(newFile), pago.DirPerms); err != nil {
-		return fmt.Errorf("failed to create directory for new entry: %v", err)
+		return fmt.Errorf("failed to create directory for new entry: %w", err)
 	}
 
 	if err := os.Rename(oldFile, newFile); err != nil {
-		return fmt.Errorf("failed to rename entry: %v", err)
+		return fmt.Errorf("failed to rename entry: %w", err)
 	}
 
 	removeEmptyParentDirs(config.Store, filepath.Dir(oldFile))
@@ -958,11 +995,12 @@ func (cmd *RenameCmd) Run(config *Config) error {
 			fmt.Sprintf("rename %q to %q", cmd.OldName, cmd.NewName),
 			[]string{oldFile, newFile},
 		); err != nil {
-			return err
+			return fmt.Errorf("failed to commit to Git: %w", err)
 		}
 	}
 
 	fmt.Fprintf(os.Stderr, "Renamed %q to %q\n", cmd.OldName, cmd.NewName)
+
 	return nil
 }
 
@@ -975,12 +1013,12 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 
 	identitiesText, err := crypto.DecryptIdentities(config.Identities)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decrypt identities: %w", err)
 	}
 
 	newPassword, err := input.ReadNewPassword(config.Confirm)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to read new password: %w", err)
 	}
 
 	var buf bytes.Buffer
@@ -1004,6 +1042,7 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 	if err := w.Close(); err != nil {
 		return fmt.Errorf("failed to close encrypted writer: %w", err)
 	}
+
 	if err := armorWriter.Close(); err != nil {
 		return fmt.Errorf("failed to close armor writer: %w", err)
 	}
@@ -1013,6 +1052,7 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 	}
 
 	fmt.Fprintln(os.Stderr, "Identities file reencrypted")
+
 	return nil
 }
 
@@ -1020,7 +1060,7 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string, keyPath []string) ([]string, error) {
 	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to decrypt entry: %w", err)
 	}
 
 	if !isTOML(content) {
@@ -1043,6 +1083,7 @@ func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock
 		if !ok {
 			return nil, fmt.Errorf("key path %s not found in entry %q", quoteKeyPath(keyPath[:i+1]), name)
 		}
+
 		value = v
 	}
 
@@ -1051,6 +1092,7 @@ func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock
 		if len(keyPath) > 0 {
 			return nil, fmt.Errorf("value at key path %s is not a table", quoteKeyPath(keyPath))
 		}
+
 		return nil, fmt.Errorf("entry %q is not a TOML table", name)
 	}
 
@@ -1058,6 +1100,7 @@ func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock
 	for k := range currentMap {
 		keys = append(keys, k)
 	}
+
 	sort.Strings(keys)
 
 	return keys, nil
@@ -1077,7 +1120,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 	}
 
 	if cmd.Keys && cmd.Name == "" && !cmd.Pick {
-		return fmt.Errorf("entry name required with --keys")
+		return errors.New("entry name required with --keys")
 	}
 
 	if !cmd.Pick && cmd.Name == "" {
@@ -1089,11 +1132,13 @@ func (cmd *ShowCmd) Run(config *Config) error {
 	if cmd.Pick {
 		picked, err := input.PickEntry(config.Store, name)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to pick entry: %w", err)
 		}
+
 		if picked == "" {
 			return nil
 		}
+
 		name = picked
 	}
 
@@ -1102,6 +1147,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 	}
 
 	var output string
+
 	if cmd.Keys {
 		keys, err := getTOMLKeys(
 			config.AgentExecutable,
@@ -1114,12 +1160,13 @@ func (cmd *ShowCmd) Run(config *Config) error {
 			cmd.Key,
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get TOML keys: %w", err)
 		}
 
 		output = strings.Join(keys, "\n")
 	} else {
 		var err error
+
 		output, err = getPassword(
 			config.AgentExecutable,
 			config.Expire,
@@ -1131,11 +1178,12 @@ func (cmd *ShowCmd) Run(config *Config) error {
 			cmd.Key,
 		)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get password: %w", err)
 		}
 	}
 
 	fmt.Print(output)
+
 	if !strings.HasSuffix(output, "\n") {
 		fmt.Println()
 	}
@@ -1145,12 +1193,14 @@ func (cmd *ShowCmd) Run(config *Config) error {
 
 type VersionCmd struct{}
 
+//nolint:unparam
 func (cmd *VersionCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
 	}
 
 	fmt.Println(pago.Version)
+
 	return nil
 }
 
@@ -1158,10 +1208,10 @@ func (cmd *VersionCmd) Run(config *Config) error {
 func initConfig(cli *CLI) (*Config, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %v", err)
+		return nil, fmt.Errorf("failed to get home directory: %w", err)
 	}
 
-	store := filepath.Join(cli.Dir, storePath)
+	store := filepath.Join(cli.Dir, pago.StorePath)
 
 	config := Config{
 		AgentExecutable: cli.AgentExecutable,
@@ -1188,17 +1238,18 @@ func initConfig(cli *CLI) (*Config, error) {
 func generatePassword(pattern string, length int) (string, error) {
 	regexpPattern, err := regexp.Compile(pattern)
 	if err != nil {
-		return "", fmt.Errorf("failed to compile regular expression: %v", err)
+		return "", fmt.Errorf("failed to compile regular expression: %w", err)
 	}
 
 	var password strings.Builder
-
 	steps := 0
+
 	for password.Len() < length {
 		b := make([]byte, 1)
+
 		_, err := rand.Read(b)
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to generate random byte: %w", err)
 		}
 
 		char := string(b[0])
@@ -1207,7 +1258,7 @@ func generatePassword(pattern string, length int) (string, error) {
 		}
 
 		steps++
-		if steps == length*maxStepsPerChar {
+		if steps == length*pago.MaxStepsPerChar {
 			return "", fmt.Errorf("failed to generate password after %d steps", steps)
 		}
 	}
@@ -1218,6 +1269,7 @@ func generatePassword(pattern string, length int) (string, error) {
 // pathExists checks if a file or directory exists at the given path.
 func pathExists(path string) bool {
 	_, err := os.Stat(path)
+
 	return !errors.Is(err, os.ErrNotExist)
 }
 
@@ -1295,7 +1347,8 @@ func main() {
 		if dataDir == "" {
 			dataDir = pago.DefaultDataDir
 		}
-		storeDir := filepath.Join(dataDir, storePath)
+
+		storeDir := filepath.Join(dataDir, pago.StorePath)
 
 		if pathExists(storeDir) {
 			args = []string{"show"}
@@ -1313,6 +1366,7 @@ func main() {
 	if err != nil {
 		pago.ExitWithError("%v", err)
 	}
+
 	if config.Verbose {
 		printRepr(config)
 	}

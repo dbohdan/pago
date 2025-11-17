@@ -6,6 +6,7 @@
 package pago
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,8 @@ import (
 	"strings"
 	"time"
 )
+
+const waitStep = 50 * time.Millisecond
 
 // EntryFile constructs the full file path for a given entry name in the store.
 // It also validates the entry name for invalid characters and ensures the path is within the store.
@@ -31,7 +34,7 @@ func EntryFile(passwordStore, name string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("entry path is out of bounds")
+	return "", errors.New("entry path is out of bounds")
 }
 
 // WaitUntilAvailable waits until a file or directory at the given path exists,
@@ -49,7 +52,7 @@ func WaitUntilAvailable(path string, maximum time.Duration) error {
 			return fmt.Errorf("reached %v timeout", maximum)
 		}
 
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(waitStep)
 	}
 }
 
@@ -61,7 +64,7 @@ func PrintError(format string, value any) {
 // ExitWithError prints a formatted error message to stderr and exits the program with status 1.
 func ExitWithError(format string, value any) {
 	PrintError(format, value)
-	os.Exit(1)
+	os.Exit(ExitError)
 }
 
 // ListFiles walks a directory tree and returns a list of file names
@@ -76,7 +79,7 @@ func ListFiles(root string, transform func(name string, info os.FileInfo) (bool,
 
 		name, err = filepath.Abs(name)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to get absolute path: %w", err)
 		}
 
 		keep, displayName := transform(name, info)
@@ -89,13 +92,13 @@ func ListFiles(root string, transform func(name string, info os.FileInfo) (bool,
 		return nil
 	})
 	if err != nil {
-		return []string{}, err
+		return []string{}, fmt.Errorf("failed to walk directory: %w", err)
 	}
 
 	return list, nil
 }
 
-// Return a function that filters entries by a filename pattern.
+// EntryFilter returns a function that filters entries by a filename pattern.
 func EntryFilter(root string, pattern *regexp.Regexp) func(name string, info os.FileInfo) (bool, string) {
 	return func(name string, info os.FileInfo) (bool, string) {
 		if info.IsDir() || !strings.HasSuffix(name, AgeExt) {

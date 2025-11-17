@@ -69,6 +69,7 @@ func buildAll() error {
 		if i > 0 {
 			fmt.Println()
 		}
+
 		fmt.Printf("Building for %s/%s:\n", target.os, target.arch)
 
 		arch, system := userArchAndSystem(target)
@@ -82,6 +83,7 @@ func buildAll() error {
 		}
 
 		var buildErrors []error
+
 		for _, pkg := range pkgs {
 			outputPath, err := build(target, targetDir, pkg)
 			if err != nil {
@@ -89,7 +91,7 @@ func buildAll() error {
 			}
 
 			if err := appendChecksum(checksumFilePath, outputPath); err != nil {
-				return err
+				return fmt.Errorf("failed to append checksum: %w", err)
 			}
 		}
 
@@ -103,7 +105,7 @@ func buildAll() error {
 		}
 
 		if err := appendChecksum(checksumFilePath, zipPath); err != nil {
-			return err
+			return fmt.Errorf("failed to append checksum: %w", err)
 		}
 
 		if err := os.RemoveAll(targetDir); err != nil {
@@ -112,8 +114,9 @@ func buildAll() error {
 	}
 
 	fmt.Println()
+
 	if err := signFile(filepath.Join(releaseDir, checksumFilename)); err != nil {
-		return fmt.Errorf("signing failed: %v\n", err)
+		return fmt.Errorf("signing failed: %w", err)
 	}
 
 	return nil
@@ -127,12 +130,15 @@ func userArchAndSystem(target BuildTarget) (string, string) {
 	if arch == "386" {
 		arch = "x86"
 	}
+
 	if system == "darwin" {
 		system = "macos"
 	}
+
 	if (system == "linux" || system == "macos") && arch == "amd64" {
 		arch = "x86_64"
 	}
+
 	if system == "linux" && arch == "arm64" {
 		arch = "aarch64"
 	}
@@ -152,9 +158,10 @@ func build(target BuildTarget, dir, pkg string) (string, error) {
 	outputPath := filepath.Join(dir, filepath.Base(pkg)+ext)
 
 	cmd := exec.Command("go", "build", "-trimpath", "-o", outputPath, pkg)
+
 	cmd.Env = append(os.Environ(),
-		fmt.Sprintf("GOOS=%s", target.os),
-		fmt.Sprintf("GOARCH=%s", target.arch),
+		"GOOS="+target.os,
+		"GOARCH="+target.arch,
 		"CGO_ENABLED=0",
 	)
 
@@ -169,7 +176,7 @@ func build(target BuildTarget, dir, pkg string) (string, error) {
 func zipDirectory(zipPath, dirPath string) error {
 	zipFile, err := os.Create(zipPath)
 	if err != nil {
-		return fmt.Errorf("failed to create ZIP file: %v", err)
+		return fmt.Errorf("failed to create ZIP file: %w", err)
 	}
 	defer zipFile.Close()
 
@@ -188,58 +195,63 @@ func zipDirectory(zipPath, dirPath string) error {
 		// Use a relative path in the ZIP archive.
 		relPath, err := filepath.Rel(dirPath, path)
 		if err != nil {
-			return fmt.Errorf("failed to get relative path: %v", err)
+			return fmt.Errorf("failed to get relative path: %w", err)
 		}
 
 		// Create an entry with the original modification time.
 		header, err := zip.FileInfoHeader(info)
 		if err != nil {
-			return fmt.Errorf("failed to create ZIP header: %v", err)
+			return fmt.Errorf("failed to create ZIP header: %w", err)
 		}
 
 		header.Method = zip.Deflate
 		header.Name = filepath.Join(filepath.Base(dirPath), relPath)
+
 		zipEntry, err := zipWriter.CreateHeader(header)
 		if err != nil {
-			return fmt.Errorf("failed to create ZIP entry: %v", err)
+			return fmt.Errorf("failed to create ZIP entry: %w", err)
 		}
 
 		// Write the file contents.
 		file, err := os.Open(path)
 		if err != nil {
-			return fmt.Errorf("failed to open file for zipping: %v", err)
+			return fmt.Errorf("failed to open file for zipping: %w", err)
 		}
 		defer file.Close()
 
 		if _, err := io.Copy(zipEntry, file); err != nil {
-			return fmt.Errorf("failed to write zip entry: %v", err)
+			return fmt.Errorf("failed to write zip entry: %w", err)
 		}
 
 		return nil
 	})
+	if err != nil {
+		return fmt.Errorf("failed to create ZIP file: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 // appendChecksum calculates the SHA256 checksum of a file and appends it to the checksum file.
 func appendChecksum(checksumFilePath, filePath string) error {
 	f, err := os.Open(filePath)
 	if err != nil {
-		return fmt.Errorf("failed to open file for checksumming: %v", err)
+		return fmt.Errorf("failed to open file for checksumming: %w", err)
 	}
 	defer f.Close()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
-		return fmt.Errorf("failed to calculate hash: %v", err)
+		return fmt.Errorf("failed to calculate hash: %w", err)
 	}
 
 	hash := hex.EncodeToString(h.Sum(nil))
 
 	relPath, err := filepath.Rel(filepath.Dir(checksumFilePath), filePath)
 	if err != nil {
-		return fmt.Errorf("failed to get relative path: %v", err)
+		return fmt.Errorf("failed to get relative path: %w", err)
 	}
+
 	checksumLine := fmt.Sprintf("%s  %s\n", hash, relPath)
 
 	f, err = os.OpenFile(checksumFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, filePerms)
@@ -259,11 +271,12 @@ func appendChecksum(checksumFilePath, filePath string) error {
 func signFile(filePath string) error {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to get user home directory: %w", err)
 	}
 
 	fmt.Printf("Signing %s\n", filePath)
 
+	//nolint:gosec
 	cmd := exec.Command("ssh-keygen", "-Y", "sign", "-n", "file", "-f", filepath.Join(homeDir, sshKey), filePath)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

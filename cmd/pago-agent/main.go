@@ -41,7 +41,7 @@ func (cmd *RunCmd) Run(cli *CLI) error {
 
 	socketDir := filepath.Dir(cli.Socket)
 	if err := os.MkdirAll(socketDir, pago.DirPerms); err != nil {
-		return fmt.Errorf("failed to create socket directory: %v", err)
+		return fmt.Errorf("failed to create socket directory: %w", err)
 	}
 
 	return agent.Run(cli.Socket, cli.Expire)
@@ -50,8 +50,9 @@ func (cmd *RunCmd) Run(cli *CLI) error {
 type VersionCmd struct{}
 
 // Run prints the current version of the agent.
-func (cmd *VersionCmd) Run(cli *CLI) error {
+func (cmd *VersionCmd) Run(_ *CLI) error {
 	fmt.Println(pago.Version)
+
 	return nil
 }
 

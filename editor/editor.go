@@ -23,8 +23,8 @@ const (
 	editorCharLimit = 1 << 30
 )
 
-// CancelError is the public instance of the cancelError.
-var CancelError = &cancelError{}
+// ErrCancel is the public instance of the cancelError.
+var ErrCancel = &cancelError{}
 
 // Error returns the error message for a cancelError.
 func (e *cancelError) Error() string {
@@ -59,6 +59,7 @@ func Edit(title, initial string, save, mouse bool) (string, error) {
 
 		func() string {
 			text, _ := clipboard.ReadAll()
+
 			return text
 		},
 	)
@@ -69,6 +70,7 @@ func Edit(title, initial string, save, mouse bool) (string, error) {
 	} else {
 		bannerText = bannerNoSave
 	}
+
 	banner := tview.NewTextView().
 		SetText(fmt.Sprintf(bannerText, title))
 
@@ -79,11 +81,12 @@ func Edit(title, initial string, save, mouse bool) (string, error) {
 		AddItem(textArea, 0, 1, true)
 
 	var canceled bool
+
 	app.SetInputCapture(func(event *tcell.EventKey) *tcell.EventKey {
 		switch event.Key() {
-
 		case tcell.KeyCtrlC:
 			canceled = true
+
 			app.Stop()
 
 			return nil
@@ -98,6 +101,7 @@ func Edit(title, initial string, save, mouse bool) (string, error) {
 		case tcell.KeyHome:
 			if event.Modifiers()&tcell.ModCtrl != 0 {
 				textArea.Select(0, 0)
+
 				return nil
 			}
 
@@ -105,19 +109,24 @@ func Edit(title, initial string, save, mouse bool) (string, error) {
 			if event.Modifiers()&tcell.ModCtrl != 0 {
 				length := textArea.GetTextLength()
 				textArea.Select(length, length)
+
 				return nil
 			}
+
+		default:
+			return event
 		}
 
+		// Never reached.
 		return event
 	})
 
 	if err := app.SetRoot(layout, true).SetFocus(textArea).Run(); err != nil {
-		return "", fmt.Errorf("editor failed: %v", err)
+		return "", fmt.Errorf("editor failed: %w", err)
 	}
 
 	if canceled {
-		return "", CancelError
+		return "", ErrCancel
 	}
 
 	return textArea.GetText(), nil

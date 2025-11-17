@@ -23,11 +23,11 @@ func PickEntry(store string, query string) (string, error) {
 	// Create a list of all passwords.
 	list, err := pago.ListFiles(store, pago.EntryFilter(store, nil))
 	if err != nil {
-		return "", fmt.Errorf("failed to list passwords: %v", err)
+		return "", fmt.Errorf("failed to list passwords: %w", err)
 	}
 
 	if len(list) == 0 {
-		return "", fmt.Errorf("no password entries found")
+		return "", errors.New("no password entries found")
 	}
 
 	// Show an interactive fuzzy finder.
@@ -42,22 +42,25 @@ func PickEntry(store string, query string) (string, error) {
 		if errors.Is(err, fuzzyfinder.ErrAbort) {
 			return "", nil
 		}
-		return "", fmt.Errorf("fuzzy finder failed: %v", err)
+
+		return "", fmt.Errorf("fuzzy finder failed: %w", err)
 	}
 
 	return list[idx], nil
 }
 
-// Read a password without echo if standard input is a terminal.
+// SecureRead reads a password without echo if standard input is a terminal.
 func SecureRead(prompt string) (string, error) {
 	fmt.Fprint(os.Stderr, prompt)
 
 	fd := int(os.Stdin.Fd())
 	if term.IsTerminal(fd) {
 		password, err := term.ReadPassword(fd)
+
 		fmt.Fprintln(os.Stderr)
+
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to read password: %w", err)
 		}
 
 		return string(password), nil
@@ -65,7 +68,7 @@ func SecureRead(prompt string) (string, error) {
 
 	scanner := bufio.NewScanner(os.Stdin)
 	if !scanner.Scan() {
-		return "", scanner.Err()
+		return "", fmt.Errorf("failed to read password: %w", scanner.Err())
 	}
 
 	return scanner.Text(), nil
@@ -78,8 +81,9 @@ func AskYesNo(prompt string) (bool, error) {
 	// Save the terminal state to restore later.
 	oldState, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {
-		return false, fmt.Errorf("failed to make terminal raw: %v", err)
+		return false, fmt.Errorf("failed to make terminal raw: %w", err)
 	}
+
 	defer func() {
 		_ = term.Restore(int(os.Stdin.Fd()), oldState)
 	}()
@@ -88,15 +92,17 @@ func AskYesNo(prompt string) (bool, error) {
 	for answer != "n" && answer != "y" {
 		// Read a single byte from the terminal.
 		var input [1]byte
+
 		_, err = os.Stdin.Read(input[:])
 		if err != nil {
-			return false, fmt.Errorf("failed to read input: %v", err)
+			return false, fmt.Errorf("failed to read input: %w", err)
 		}
 
 		answer = strings.ToLower(string(input[0]))
 	}
 
 	_ = term.Restore(int(os.Stdin.Fd()), oldState)
+
 	fmt.Fprintln(os.Stderr)
 
 	return answer == "y", nil
@@ -107,21 +113,21 @@ func AskYesNo(prompt string) (bool, error) {
 func ReadNewPassword(confirm bool) (string, error) {
 	pass, err := SecureRead("Enter password: ")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to read password: %w", err)
 	}
 
 	if len(pass) == 0 {
-		return "", fmt.Errorf("empty password")
+		return "", errors.New("empty password")
 	}
 
 	if confirm {
 		pass2, err := SecureRead("Enter password (again): ")
 		if err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to read password confirmation: %w", err)
 		}
 
 		if pass != pass2 {
-			return "", fmt.Errorf("passwords do not match")
+			return "", errors.New("passwords do not match")
 		}
 	}
 

@@ -97,7 +97,7 @@ func withPagoDir(test func(dataDir string) (string, error)) (string, error) {
 func createFakeEntry(dataDir, name string) error {
 	file, err := os.OpenFile(filepath.Join(dataDir, "store", name+".age"), os.O_CREATE|os.O_RDONLY, pago.FilePerms)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create fake entry file: %w", err)
 	}
 
 	return file.Close()
