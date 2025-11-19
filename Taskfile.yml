@@ -1,7 +1,6 @@
 version: '3'
 
 vars:
-  ext: '{{if eq OS "windows"}}.exe{{end}}'
   pago_agent_cmd_dir: cmd/pago-agent
   pago_cmd_dir: cmd/pago
 
@@ -57,7 +56,7 @@ tasks:
   clean:
     desc: 'Clean up executables'
     cmds:
-      - rm -f {{.pago_cmd_dir}}/pago{{.ext}} {{.pago_agent_cmd_dir}}/pago-agent{{.ext}}
+      - rm -f {{.pago_cmd_dir}}/pago{{exeExt}} {{.pago_agent_cmd_dir}}/pago-agent{{exeExt}}
 
   lint:
     desc: 'Run golangci-lint'
@@ -69,7 +68,7 @@ tasks:
     deps:
       - build-pago
     cmds:
-      - VERSION=$({{.pago_cmd_dir}}/pago{{.ext}} version) go run script/release.go
+      - VERSION=$({{.pago_cmd_dir}}/pago{{exeExt}} version) go run script/release.go
 
   test:
     desc: 'Run tests'
