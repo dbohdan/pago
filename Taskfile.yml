@@ -1,8 +1,8 @@
 version: '3'
 
 vars:
-  pago_agent_cmd_dir: cmd/pago-agent
-  pago_cmd_dir: cmd/pago
+  PAGO_AGENT_CMD_DIR: cmd/pago-agent
+  PAGO_CMD_DIR: cmd/pago
 
 env:
   CGO_ENABLED: 0
@@ -21,30 +21,46 @@ tasks:
   build:
     desc: 'Build all components'
     deps:
-      - build-pago
-      - build-pago-agent
+      - build:bin
 
-  build-pago:
-    dir: '{{.pago_cmd_dir}}'
-    desc: 'Build the pago executable'
+  build:bin:
+    desc: 'Build all binaries'
+    deps:
+      - build:pago
+      - build:pago-agent
+
+  build:package:
+    desc: 'Build a single Go package'
+    internal: true
+    dir: '{{.PACKAGE}}'
     cmds:
-      - cmd: go build -trimpath
+      - 'go build -trimpath # {{.PACKAGE}}'
+
+  build:pago:
+    desc: 'Build the pago binary'
+    run: once
+    cmds:
+      - task: build:package
+        vars:
+          PACKAGE: '{{.PAGO_CMD_DIR}}'
     sources:
       - '*.go'
-      - '../../**/*.go'
+      - '**/*.go'
     generates:
-      - pago
+      - cmd/pago/pago
 
-  build-pago-agent:
-    dir: '{{.pago_agent_cmd_dir}}'
-    desc: 'Build the pago agent executable'
+  build:pago-agent:
+    desc: 'Build the pago agent binary'
+    run: once
     cmds:
-      - cmd: go build -trimpath
+      - task: build:package
+        vars:
+          PACKAGE: '{{.PAGO_AGENT_CMD_DIR}}'
     sources:
       - '*.go'
-      - '../../**/*.go'
+      - '**/*.go'
     generates:
-      - pago-agent
+      - cmd/pago-agent/pago-agent
 
   check:
     desc: 'Build, lint, and test everything'
@@ -54,9 +70,9 @@ tasks:
       - test
 
   clean:
-    desc: 'Clean up executables'
+    desc: 'Clean up binaries'
     cmds:
-      - rm -f {{.pago_cmd_dir}}/pago{{exeExt}} {{.pago_agent_cmd_dir}}/pago-agent{{exeExt}}
+      - rm -f {{.PAGO_CMD_DIR}}/pago {{.PAGO_AGENT_CMD_DIR}}/pago-agent
 
   lint:
     desc: 'Run golangci-lint'
@@ -66,14 +82,13 @@ tasks:
   release:
     desc: 'Prepare a release'
     deps:
-      - build-pago
+      - build:bin
     cmds:
-      - VERSION=$({{.pago_cmd_dir}}/pago{{exeExt}} version) go run script/release.go
+      - VERSION=$({{.PAGO_CMD_DIR}}/pago version) go run script/release.go
 
   test:
     desc: 'Run tests'
     deps:
-      - build-pago
-      - build-pago-agent
+      - build:bin
     cmds:
       - go test ./...
