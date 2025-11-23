@@ -21,11 +21,6 @@ tasks:
   build:
     desc: 'Build all components'
     deps:
-      - build:bin
-
-  build:bin:
-    desc: 'Build all binaries'
-    deps:
       - build:pago
       - build:pago-agent
 
@@ -63,9 +58,10 @@ tasks:
       - cmd/pago-agent/pago-agent
 
   check:
-    desc: 'Build, lint, and test everything'
+    desc: 'Build, format, lint, and test everything'
     deps:
       - build
+      - format
       - lint
       - test
 
@@ -74,21 +70,26 @@ tasks:
     cmds:
       - rm -f {{.PAGO_CMD_DIR}}/pago {{.PAGO_AGENT_CMD_DIR}}/pago-agent
 
+  format:
+    desc: 'Format source code'
+    cmds:
+      - golangci-lint fmt
+
   lint:
-    desc: 'Run golangci-lint'
+    desc: 'Run linters'
     cmds:
       - golangci-lint run
 
   release:
     desc: 'Prepare a release'
     deps:
-      - build:bin
+      - build
     cmds:
       - VERSION=$({{.PAGO_CMD_DIR}}/pago version) go run script/release.go
 
   test:
     desc: 'Run tests'
     deps:
-      - build:bin
+      - build
     cmds:
       - go test ./...
