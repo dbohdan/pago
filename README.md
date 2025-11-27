@@ -25,45 +25,43 @@ Identities can be:
 - age identities
 - SSH private keys
 
-The file with the identities is encrypted with a password, also using age.
+The identities file is encrypted with a password, also using age.
 
 pago implements an agent like [ssh-agent](https://en.wikipedia.org/wiki/Ssh-agent) or [gpg-agent](https://www.gnupg.org/documentation/manuals/gnupg/Invoking-GPG_002dAGENT.html).
-The agent caches the identities.
-This means you don't have to enter the master password again during a session.
-pago starts the agent the first time you enter the master password.
-You can also start and stop the agent manually.
+The agent caches the identities, eliminating the need to re-enter the master password during a session.
+pago starts the agent automatically the first time you enter the master password.
+You can also start and stop it manually.
 
 The pago password store format is compatible with [passage](https://github.com/FiloSottile/passage).
 It has the following differences:
 
 - The pago directory is located at `$XDG_DATA_HOME/pago/`, while passage uses `~/.passage/`
-- passage supports an encrypted or an unencrypted identities file; pago only supports encrypted
+- passage supports both encrypted and unencrypted identities; pago supports only encrypted
 
 ## Threat model
 
-An attacker who gets ahold of your pago directory but not the master password should be unable to access the passwords stored in pago except by [brute-forcing](https://en.wikipedia.org/wiki/Brute-force_attack) the master password.
+An attacker who obtains your pago directory but not the master password should be unable to access the stored passwords except by [brute-forcing](https://en.wikipedia.org/wiki/Brute-force_attack) the master password.
 
 ## Motivation and alternatives
 
 My primary password manager is [KeePassXC](https://github.com/keepassxreboot/keepassxc).
 I use a secondary password manager to access a subset of secrets in cron jobs and scripts and on headless remote systems.
 
-I used [`pass`](https://www.passwordstore.org/) for this for a time.
-While I liked the design of `pass` and found it pleasant to use, I didn't like setting up GPG on a new system.
-I went looking for a `pass` replacement based on age
-because I had replaced GPG with age for encrypting files.
-The following is the late-2024 shortlist of password managers I compiled before I decided to work on pago.
-It includes explanations for why I didn't adopt them.
+I used [`pass`](https://www.passwordstore.org/) for this purpose for some time.
+While I appreciated the design of `pass` and found it pleasant to use, I did not like setting up GPG on a new system.
+I searched for a `pass` replacement based on age because I had already replaced GPG with age for encrypting files.
+The following is a late-2024 shortlist of password managers I compiled before deciding to develop pago.
+It includes explanations for why I did not adopt them.
 
 First, I needed the identities encrypted at rest and usable without reentering the password.
-This ruled out [passage](https://github.com/FiloSottile/passage), which had no agent, and [pa](https://github.com/biox/pa), which didn't support encryption for the identities file.
-[kbs2](https://github.com/woodruffw/kbs2) didn't integrate with Git.
-[seniorpw](https://gitlab.com/retirement-home/seniorpw) matched all of my criteria and was the closest to `pass`.
-It is what I would most likely be using if I didn't decide to develop my own.
+This ruled out [passage](https://github.com/FiloSottile/passage), which had no agent, and [pa](https://github.com/biox/pa), which did not support encryption for the identities file.
+[kbs2](https://github.com/woodruffw/kbs2) did not integrate with Git.
+[seniorpw](https://gitlab.com/retirement-home/seniorpw) met all my criteria and was the closest to `pass`.
+It is what I would most likely be using if I had not decided to develop pago.
 The [`-k`/`--key` feature](https://gitlab.com/retirement-home/seniorpw#editshowmoveremove-a-password) in seniorpw later inspired [TOML entries](#toml-entries) and the approach to [TOTP](#totp).
 
 All of the above password managers are worth your attention.
-For more options, see ["Awesome age"](https://github.com/FiloSottile/awesome-age).
+For additional options, see ["Awesome age"](https://github.com/FiloSottile/awesome-age).
 
 ## History
 
@@ -92,8 +90,8 @@ You may need to allow pago-agent to [**lock enough memory**](#memory-locking).
 - pago is automatically tested on FreeBSD and macOS.
 - pago does not build on Windows.
 
-The pago agent and test suite don't work on Windows.
-Instead of offering a partial and untested Windows build, the project doesn't support Windows.
+The pago agent and test suite do not work on Windows.
+Instead of offering a partial and untested Windows build, the project does not support Windows.
 Windows users interested in pago are encouraged to try it in [WSL](https://en.wikipedia.org/wiki/Windows_Subsystem_for_Linux).
 
 ## Usage
@@ -111,12 +109,12 @@ This will create a new password store, prompt you for a master password, and com
 To use pago with an SSH key as an identity, follow these steps.
 Back up your `identities` file and install age for the command line before proceeding.
 
-Note that the SSH key must not be encrypted, i.e., must not have a password.
+Note that the SSH key must not be encrypted, that is, must not have a password.
 If necessary, remove the password with `ssh-keygen`.
 pago encrypts `identities` with a password using age encryption.
 
 You may wish to work with secrets in memory or on an encrypted disk.
-On Linux with glibc, you normally have `/dev/shm/` available as temporary in-memory storage.
+On Linux with glibc, you typically have `/dev/shm/` available as temporary in-memory storage.
 
 1. Add your SSH _public_ key to `.age-recipients`.
 You can have multiple recipients.
@@ -202,7 +200,7 @@ pago pick foo
 # Edit a password that already exists.
 pago edit foo/bar
 
-# Create a password if it doesn't exist.
+# Create a password if it does not exist.
 pago edit foo/new -f
 
 # Edit without mouse support.
@@ -267,9 +265,9 @@ numbers = [1, 1, 2, 3, 5]
 EOF
 ```
 
-When you `show` or `clip` a TOML entry without specifying a key, pago will use a default key.
-The default key is `password`.
-You can specify a different default key by adding a key `default` to the TOML entry.
+When you `show` or `clip` a TOML entry without specifying a key, pago will use its default key.
+If the default key for the entry is not set, the default key is `password`.
+You can set a different default key by adding the key `default`.
 
 ```shell
 pago add -m services/my-api-custom-default <<EOF
@@ -284,7 +282,7 @@ pago show services/my-api-custom-default
 
 You can retrieve other values from the TOML entry using the `-k`/`--key` option with `show`, `clip`, and `pick`.
 The option can be repeated to access nested keys.
-To see all available keys (sorted), use the `-K`/`--keys` option with `show`.
+To see all available keys in alphabetical order, use the `-K`/`--keys` option with `show`.
 You can combine this with `-k`/`--key` to list keys within a nested table.
 
 ```shell
@@ -320,7 +318,7 @@ pago clip -k key services/my-api
 ```
 
 When an entry is parsed as TOML, pago can retrieve scalar values (strings, numbers, booleans) and arrays of scalars.
-Arrays and scalars other than strings are encoded as TOML for output.
+Arrays and non-string scalars are encoded as TOML for output.
 pago cannot retrieve tables directly, but it can traverse them to access nested values.
 
 ### TOTP
@@ -366,7 +364,7 @@ pago agent start --expire 1h
 # By default, the agent locks its memory to prevent secrets from being written to swap.
 # You may need to run the command `ulimit -l 100000` to let it lock enough memory.
 # Alternatively, you can disable memory locking
-# with the environment variable `PAGO_MEMLOCK=0` or the option  `--no-memlock`.
+# with the environment variable `PAGO_MEMLOCK=0` or the option `--no-memlock`.
 pago agent start --no-memlock
 
 # Run without an agent.
@@ -382,18 +380,18 @@ pago-agent defaults to [locking the process memory](https://pubs.opengroup.org/o
 Secrets could be recovered from unencrypted swap that was not erased at system shutdown.
 
 pago-agent uses up to 100 MiB of memory on systems where it has been tested.
-Most operating systems don't allow a process to lock this much memory by default.
+Most operating systems do not allow a process to lock this much memory by default.
 Additionally, on Free/Net/OpenBSD, the agent apparently needs the limit on locked memory to exceed its virtual memory even though only around 100 MiB is reserved.
-The amount of virtual memory can be over 1 GiB.
-(You don't lose 1 GiB of memory.)
-Configure your system to allow this or set the environment variable `PAGO_MEMLOCK=0` to disable locking.
+The amount of virtual memory can exceed 1 GiB.
+(You do not lose 1 GiB of memory.)
+Configure your system to allow this, or set the environment variable `PAGO_MEMLOCK=0` to disable locking.
 
 Here is how to allow users to lock more memory on different operating systems.
 In these examples, we set the limit to 8 GiB.
 
 #### Linux (systemd)
 
-1. Create `/etc/systemd/system.conf.d/` if it doesn't exist.
+1. Create `/etc/systemd/system.conf.d/` if it does not exist.
 2. Edit `/etc/systemd/system.conf.d/limits.conf` to contain the following:
 
 ```ini
