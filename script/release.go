@@ -72,10 +72,9 @@ func buildAll() error {
 
 		fmt.Printf("Building for %s/%s:\n", target.os, target.arch)
 
-		arch, system := userArchAndSystem(target)
 		targetDir := filepath.Join(
 			releaseDir,
-			fmt.Sprintf("%s-v%s-%s-%s", projectName, version, system, arch),
+			fmt.Sprintf("%s-v%s-%s-%s", projectName, version, target.os, target.arch),
 		)
 
 		if err := os.MkdirAll(targetDir, dirPerms); err != nil {
@@ -120,30 +119,6 @@ func buildAll() error {
 	}
 
 	return nil
-}
-
-// userArchAndSystem maps GOARCH and GOOS to user-facing names.
-func userArchAndSystem(target BuildTarget) (string, string) {
-	arch := target.arch
-	system := target.os
-
-	if arch == "386" {
-		arch = "x86"
-	}
-
-	if system == "darwin" {
-		system = "macos"
-	}
-
-	if (system == "linux" || system == "macos") && arch == "amd64" {
-		arch = "x86_64"
-	}
-
-	if system == "linux" && arch == "arm64" {
-		arch = "aarch64"
-	}
-
-	return arch, system
 }
 
 // build compiles a Go package for a specific target and places the executable in the given directory.
