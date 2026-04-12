@@ -47,7 +47,7 @@ An attacker who obtains your pago directory but not the master password should b
 My primary password manager is [KeePassXC](https://github.com/keepassxreboot/keepassxc).
 I use a secondary password manager to access a subset of secrets in cron jobs and scripts and on headless remote systems.
 
-I used [`pass`](https://www.passwordstore.org/) for this purpose for some time.
+I used [`pass`](https://www.passwordstore.org/) for this purpose for a while.
 While I appreciated the design of `pass` and found it pleasant to use, I did not like setting up GPG on a new system.
 I searched for a `pass` replacement based on age because I had already replaced GPG with age for encrypting files.
 The following is a late-2024 shortlist of password managers I compiled before deciding to develop pago.
@@ -61,7 +61,7 @@ It is what I would most likely be using if I had not decided to develop pago.
 The [`-k`/`--key` feature](https://gitlab.com/retirement-home/seniorpw#editshowmoveremove-a-password) in seniorpw later inspired [TOML entries](#toml-entries) and the approach to [TOTP](#totp).
 
 All of the above password managers are worth your attention.
-For additional options, see ["Awesome age"](https://github.com/FiloSottile/awesome-age).
+For more options, see ["Awesome age"](https://github.com/FiloSottile/awesome-age).
 
 ## History
 
@@ -280,7 +280,7 @@ pago show services/my-api-custom-default
 # => xyz-456
 ```
 
-You can retrieve other values from the TOML entry using the `-k`/`--key` option with `show`, `clip`, and `pick`.
+You can retrieve other values from a TOML entry using the `-k`/`--key` option with `show`, `clip`, and `pick`.
 The option can be repeated to access nested keys.
 To see all available keys in alphabetical order, use the `-K`/`--keys` option with `show`.
 You can combine this with `-k`/`--key` to list keys within a nested table.
@@ -470,7 +470,8 @@ cap_mkdb /etc/login.conf
   Default: `[A-Za-z0-9]`.
 - `PAGO_SOCK`:
   The agent socket path.
-  The default path is determined by trying candidate paths until the parent directory of the pago directory exists.
+  The default path is determined by trying the candidate paths below in order.
+  The first path where the parent directory of the pago directory exists wins.
   `${FOO:-default value}` with `FOO` in capital letters indicates an environment variable; `${foo}` indicates an internal pago variable.
     - Linux and BSD:
       - `${XDG_RUNTIME_DIR}/pago/socket`
