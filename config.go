@@ -24,7 +24,7 @@ const (
 	MaxStepsPerChar  = 1000 // Maximum attempts to find a random character matching apattern.
 	NameInvalidChars = `[\p{Cc}]`
 	StorePath        = "store"
-	Version          = "0.23.0"
+	Version          = "0.24.0"
 	WaitForSocket    = 3 * time.Second
 
 	ExitOK           = 0
