@@ -37,7 +37,6 @@ func StartProcess(executable string, expire time.Duration, memlock bool, socket,
 		memlockFlag = "--no-memlock"
 	}
 
-	//nolint:gosec
 	cmd := exec.Command(executable, "run", memlockFlag, "--socket", socket, "--expire", expire.String())
 
 	// Start the process in the background.

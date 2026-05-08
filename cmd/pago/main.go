@@ -248,7 +248,6 @@ func (cmd *StartCmd) Run(config *Config) error {
 
 type StatusCmd struct{}
 
-//nolint:unparam
 func (cmd *StatusCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
