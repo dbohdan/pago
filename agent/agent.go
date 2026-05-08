@@ -86,6 +86,10 @@ func Run(socket string, expire time.Duration) error {
 		return fmt.Errorf("failed to create socket directory: %w", err)
 	}
 
+	if err := checkDirSecurity(socketDir); err != nil {
+		return fmt.Errorf("socket directory security check failed: %w", err)
+	}
+
 	// Remove any stale socket file before creating a new one.
 	os.Remove(socket)
 
@@ -254,8 +258,42 @@ func Decrypt(socket string, data []byte) ([]byte, error) {
 	return Message(socket, "DECRYPT", valkey.BinaryString(data))
 }
 
+// checkDirSecurity verifies that a directory is owned by the current user
+// and is not accessible to other users. This guards against a co-resident
+// user having pre-created a permissive directory at a predictable path
+// (notably the `/tmp` socket fallback).
+func checkDirSecurity(dir string) error {
+	info, err := os.Lstat(dir)
+	if err != nil {
+		return fmt.Errorf("failed to stat directory: %w", err)
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("path is not a directory: %s", dir)
+	}
+
+	stat, ok := info.Sys().(*syscall.Stat_t)
+	if !ok {
+		return errors.New("failed to get directory system info")
+	}
+
+	if int(stat.Uid) != os.Getuid() {
+		return fmt.Errorf("directory owned by wrong user: %d", stat.Uid)
+	}
+
+	if info.Mode().Perm()&0o077 != 0 {
+		return fmt.Errorf("directory accessible to other users: %v", info.Mode().Perm())
+	}
+
+	return nil
+}
+
 // checkSocketSecurity verifies that the Unix socket has the correct permissions and ownership.
 func checkSocketSecurity(socket string) error {
+	if err := checkDirSecurity(filepath.Dir(socket)); err != nil {
+		return fmt.Errorf("socket directory check failed: %w", err)
+	}
+
 	info, err := os.Stat(socket)
 	if err != nil {
 		return fmt.Errorf("failed to stat socket: %w", err)
