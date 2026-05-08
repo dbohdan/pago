@@ -234,6 +234,89 @@ func TestAddTrim(t *testing.T) {
 	}
 }
 
+func TestAddNoTTY(t *testing.T) {
+	output, err := withPagoDir(func(dataDir string) (string, error) {
+		// Pipe a password into `add` with no input-mode flag. Without a TTY,
+		// pago should fall back to reading stdin verbatim instead of trying
+		// to prompt and erroring out.
+		cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "add", "piped")
+		cmd.Stdin = strings.NewReader("piped-secret")
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		err := cmd.Run()
+		return stdout.String() + "\n" + stderr.String(), err
+	})
+	if err != nil {
+		t.Errorf("Command `add` over pipe failed: %v\n%s", err, output)
+	}
+
+	re := "Entry saved"
+	if matched, _ := regexp.MatchString(re, output); !matched {
+		t.Errorf("Expected %q in output, got %q", re, output)
+	}
+}
+
+func TestDeleteNoTTY(t *testing.T) {
+	output, err := withPagoDir(func(dataDir string) (string, error) {
+		_, _, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "foo", "--random",
+		)
+		if err != nil {
+			return "", err
+		}
+
+		// Without a terminal and without --force, delete must abort cleanly.
+		cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "delete", "foo")
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		err = cmd.Run()
+		return stdout.String() + "\n" + stderr.String(), err
+	})
+
+	if err == nil {
+		t.Error("Command `delete` without TTY should fail")
+	}
+
+	re := "stdin is not a terminal"
+	if matched, _ := regexp.MatchString(re, output); !matched {
+		t.Errorf("Expected %q in stderr, got %q", re, output)
+	}
+}
+
+func TestEditNoTTY(t *testing.T) {
+	output, err := withPagoDir(func(dataDir string) (string, error) {
+		_, _, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "foo", "--random",
+		)
+		if err != nil {
+			return "", err
+		}
+
+		cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "edit", "foo")
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		err = cmd.Run()
+		return stdout.String() + "\n" + stderr.String(), err
+	})
+
+	if err == nil {
+		t.Error("Command `edit` without TTY should fail")
+	}
+
+	re := "stdin is not a terminal"
+	if matched, _ := regexp.MatchString(re, output); !matched {
+		t.Errorf("Expected %q in stderr, got %q", re, output)
+	}
+}
+
 func TestAddNewline(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		stdout, stderr, err := runCommandEnv(

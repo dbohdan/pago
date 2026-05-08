@@ -141,6 +141,12 @@ func (cmd *AddCmd) Run(config *Config) error {
 		return fmt.Errorf("entry already exists: %v", cmd.Name)
 	}
 
+	// Without an input-mode flag and without a terminal there is no way to
+	// prompt the user. Default to reading the password from stdin verbatim.
+	if !cmd.Multiline && !cmd.Input && !cmd.Random && !input.IsTerminal() {
+		cmd.Multiline = true
+	}
+
 	var password string
 
 	//nolint:nestif
@@ -581,6 +587,10 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 	}
 
 	if !cmd.Force {
+		if !input.IsTerminal() {
+			return errors.New("cannot prompt for confirmation: stdin is not a terminal; pass --force to delete without confirmation")
+		}
+
 		if choice, err := input.AskYesNo(fmt.Sprintf("Delete entry '%s'?", name)); !choice || err != nil {
 			if err != nil {
 				return fmt.Errorf("failed to confirm deletion: %w", err)
@@ -628,6 +638,10 @@ type EditCmd struct {
 func (cmd *EditCmd) Run(config *Config) error {
 	if config.Verbose {
 		printRepr(cmd)
+	}
+
+	if !input.IsTerminal() {
+		return errors.New("cannot run editor: stdin is not a terminal")
 	}
 
 	name := cmd.Name

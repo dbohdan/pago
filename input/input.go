@@ -49,6 +49,11 @@ func PickEntry(store string, query string) (string, error) {
 	return list[idx], nil
 }
 
+// IsTerminal reports whether standard input is connected to a terminal.
+func IsTerminal() bool {
+	return term.IsTerminal(int(os.Stdin.Fd()))
+}
+
 // SecureRead reads a password without echo if standard input is a terminal.
 func SecureRead(prompt string) (string, error) {
 	fmt.Fprint(os.Stderr, prompt)
