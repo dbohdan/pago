@@ -335,7 +335,8 @@ pago cannot retrieve tables directly, but it can traverse them to access nested 
 ### TOTP
 
 pago can generate [time-based one-time passwords (TOTP)](https://en.wikipedia.org/wiki/Time-based_one-time_password) from a [TOML entry](#toml-entries).
-To use this feature, store the `otpauth://` URI in a key named `otp`.
+To use this feature, store the `otpauth://` URI in any string-valued key.
+pago generates a code whenever the resolved value starts with `otpauth://`, regardless of the key name.
 The entry must start with `# TOML`.
 
 ```shell

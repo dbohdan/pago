@@ -462,7 +462,7 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 	case reflect.String:
 		s := v.String()
 
-		if len(effectiveKeys) > 0 && effectiveKeys[len(effectiveKeys)-1] == "otp" {
+		if strings.HasPrefix(s, "otpauth://") {
 			return generateOTP(s)
 		}
 

@@ -998,7 +998,21 @@ otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Ex
 			return stdout.String() + "\n" + stderr.String(), err
 		}
 
-		checkOTP := func(entryName, expectedPattern string) error {
+		// Add a TOML entry where the URI lives under a non-`otp` key and the
+		// default points to it. Previously this returned the raw URI; now any
+		// `otpauth://` value is recognized.
+		cmd = exec.Command(commandPago, "--dir", dataDir, "add", "otp-test-renamed", "--multiline")
+		cmd.Stdin = strings.NewReader(`# TOML
+default = "secret"
+secret = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Example"`)
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err = cmd.Run()
+		if err != nil {
+			return stdout.String() + "\n" + stderr.String(), err
+		}
+
+		checkOTP := func(entryName, expectedPattern string, extraArgs ...string) error {
 			var buf bytes.Buffer
 			c, err := expect.NewConsole()
 			if err != nil {
@@ -1006,14 +1020,17 @@ otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Ex
 			}
 			defer c.Close()
 
-			cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "--key", "otp", entryName)
+			args := []string{"--dir", dataDir, "--socket", "", "show"}
+			args = append(args, extraArgs...)
+			args = append(args, entryName)
+			cmd := exec.Command(commandPago, args...)
 			cmd.Stdin = c.Tty()
 			cmd.Stdout = &buf
 			cmd.Stderr = c.Tty()
 
 			err = cmd.Start()
 			if err != nil {
-				return fmt.Errorf("failed to start command for key 'otp': %w", err)
+				return fmt.Errorf("failed to start command: %w", err)
 			}
 
 			_, _ = c.ExpectString("Enter password")
@@ -1021,7 +1038,7 @@ otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Ex
 
 			err = cmd.Wait()
 			if err != nil {
-				return fmt.Errorf("command failed for key 'otp': %w", err)
+				return fmt.Errorf("command failed: %w", err)
 			}
 
 			output := strings.TrimSpace(buf.String())
@@ -1031,11 +1048,21 @@ otp = "otpauth://totp/Example:alice@google.com?secret=JBSWY3DPEHPK3PXP&issuer=Ex
 			return nil
 		}
 
-		if err := checkOTP("otp-test-6digit", `^\d{6}$`); err != nil {
+		if err := checkOTP("otp-test-6digit", `^\d{6}$`, "--key", "otp"); err != nil {
 			return "", err
 		}
 
-		if err := checkOTP("otp-test-8digit", `^\d{8}$`); err != nil {
+		if err := checkOTP("otp-test-8digit", `^\d{8}$`, "--key", "otp"); err != nil {
+			return "", err
+		}
+
+		// `default = "secret"` should follow to the otpauth URI and generate a code.
+		if err := checkOTP("otp-test-renamed", `^\d{6}$`); err != nil {
+			return "", err
+		}
+
+		// Explicit `--key secret` on the same entry should also generate a code.
+		if err := checkOTP("otp-test-renamed", `^\d{6}$`, "--key", "secret"); err != nil {
 			return "", err
 		}
 
