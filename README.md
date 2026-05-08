@@ -257,6 +257,19 @@ pago rename foo/baz qux/quux
 
 This creates a Git commit by default.
 
+### Copy passwords
+
+```shell
+# Duplicate an entry.
+pago cp foo/bar foo/baz
+
+# Aliases: `pago copy`, `pago duplicate`.
+# Use `-f` to overwrite an existing destination.
+pago cp -f foo/bar foo/baz
+```
+
+The destination is encrypted with the current recipients, so this is also a way to re-encrypt a single entry without rekeying the whole store.
+
 ### TOML entries
 
 pago can store and retrieve structured data in the [TOML](https://toml.io/) format.

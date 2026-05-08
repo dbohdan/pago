@@ -62,6 +62,7 @@ type CLI struct {
 	Add      AddCmd      `cmd:"" aliases:"a" help:"Create new password entry"`
 	Agent    AgentCmd    `cmd:"" hidden:"" help:"Control the agent process"`
 	Clip     ClipCmd     `cmd:"" aliases:"c" help:"Copy entry to clipboard"`
+	Copy     CopyCmd     `cmd:"" aliases:"cp,duplicate" help:"Duplicate a password entry"`
 	Delete   DeleteCmd   `cmd:"" aliases:"d,del,rm" help:"Delete password entry"`
 	Edit     EditCmd     `cmd:"" aliases:"e" help:"Edit password entry"`
 	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
@@ -550,6 +551,65 @@ func (cmd *ClipCmd) Run(config *Config) error {
 			return fmt.Errorf("failed to clear clipboard: %w", err)
 		}
 	}
+
+	return nil
+}
+
+type CopyCmd struct {
+	OldName string `arg:"" help:"Source entry name"`
+	NewName string `arg:"" help:"Destination entry name"`
+
+	Force bool `short:"f" help:"Overwrite existing destination entry"`
+}
+
+func (cmd *CopyCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	if !entryExists(config.Store, cmd.OldName) {
+		return fmt.Errorf("entry doesn't exist: %v", cmd.OldName)
+	}
+
+	if !cmd.Force && entryExists(config.Store, cmd.NewName) {
+		return fmt.Errorf("entry already exists: %v", cmd.NewName)
+	}
+
+	content, err := decryptEntry(
+		config.AgentExecutable,
+		config.Expire.Duration(),
+		config.Memlock,
+		config.Socket,
+		config.Identities,
+		config.Store,
+		cmd.OldName,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt source entry: %w", err)
+	}
+
+	if err := crypto.SaveEntry(config.Recipients, config.Store, cmd.NewName, content); err != nil {
+		return fmt.Errorf("failed to save destination entry: %w", err)
+	}
+
+	newFile, err := pago.EntryFile(config.Store, cmd.NewName)
+	if err != nil {
+		return fmt.Errorf("failed to get destination file path: %w", err)
+	}
+
+	if config.Git {
+		if err := git.Commit(
+			config.Store,
+			config.GitName,
+			config.GitEmail,
+			fmt.Sprintf("copy %q to %q", cmd.OldName, cmd.NewName),
+			[]string{newFile},
+		); err != nil {
+			return fmt.Errorf("failed to commit to Git: %w", err)
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "Copied %q to %q\n", cmd.OldName, cmd.NewName)
 
 	return nil
 }

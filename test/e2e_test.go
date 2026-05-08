@@ -460,6 +460,77 @@ func TestClipSignalClears(t *testing.T) {
 	}
 }
 
+func TestCopy(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		// Add a multiline entry with known content (no TTY needed).
+		addCmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "add", "foo", "--multiline", "--trim")
+		addCmd.Stdin = strings.NewReader("hunter2\n")
+		if out, err := addCmd.CombinedOutput(); err != nil {
+			return string(out), fmt.Errorf("add failed: %w", err)
+		}
+
+		// Copy foo -> bar.
+		c, err := expect.NewConsole()
+		if err != nil {
+			return "", fmt.Errorf("failed to create console: %w", err)
+		}
+		defer c.Close()
+
+		cpCmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "cp", "foo", "bar")
+		cpCmd.Stdin = c.Tty()
+		cpCmd.Stdout = c.Tty()
+		cpCmd.Stderr = c.Tty()
+		if err := cpCmd.Start(); err != nil {
+			return "", fmt.Errorf("failed to start cp: %w", err)
+		}
+		_, _ = c.ExpectString("Enter password")
+		_, _ = c.SendLine(password)
+		if err := cpCmd.Wait(); err != nil {
+			return "", fmt.Errorf("cp failed: %w", err)
+		}
+
+		// Verify bar.age exists.
+		if _, err := os.Stat(filepath.Join(dataDir, "store", "bar.age")); err != nil {
+			return "", fmt.Errorf("destination entry missing: %w", err)
+		}
+
+		// Read bar back and verify the content matches.
+		var buf bytes.Buffer
+		showCmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "bar")
+		showCmd.Stdin = c.Tty()
+		showCmd.Stdout = &buf
+		showCmd.Stderr = c.Tty()
+		if err := showCmd.Start(); err != nil {
+			return "", fmt.Errorf("failed to start show: %w", err)
+		}
+		_, _ = c.ExpectString("Enter password")
+		_, _ = c.SendLine(password)
+		if err := showCmd.Wait(); err != nil {
+			return "", fmt.Errorf("show failed: %w", err)
+		}
+
+		if got := buf.String(); got != "hunter2\n" {
+			return "", fmt.Errorf("expected %q, got %q", "hunter2\n", got)
+		}
+
+		// Copying onto an existing destination without --force must fail.
+		dupCmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "cp", "foo", "bar")
+		dupCmd.Stdin = strings.NewReader("")
+		out, err := dupCmd.CombinedOutput()
+		if err == nil {
+			return string(out), fmt.Errorf("cp without --force should have failed")
+		}
+		if !strings.Contains(string(out), "already exists") {
+			return string(out), fmt.Errorf("expected 'already exists' error, got %q", out)
+		}
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Command `cp` failed: %v", err)
+	}
+}
+
 func TestDelete(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		_, _, err := runCommandEnv(
