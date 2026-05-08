@@ -725,6 +725,207 @@ func TestRekey(t *testing.T) {
 	}
 }
 
+// rewriteIdentities decrypts the existing identities file with the master
+// password, appends the supplied identity, and re-encrypts it.
+func rewriteIdentities(dataDir, masterPassword string, extra age.Identity) error {
+	path := filepath.Join(dataDir, "identities")
+
+	encrypted, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("failed to read identities file: %w", err)
+	}
+
+	scryptID, err := age.NewScryptIdentity(masterPassword)
+	if err != nil {
+		return fmt.Errorf("failed to create scrypt identity: %w", err)
+	}
+
+	r, err := crypto.WrapDecrypt(bytes.NewReader(encrypted), scryptID)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt identities: %w", err)
+	}
+
+	existing, err := io.ReadAll(r)
+	if err != nil {
+		return fmt.Errorf("failed to read identities: %w", err)
+	}
+
+	x25519, ok := extra.(*age.X25519Identity)
+	if !ok {
+		return fmt.Errorf("expected *age.X25519Identity, got %T", extra)
+	}
+
+	combined := strings.TrimRight(string(existing), "\n") + "\n" + x25519.String() + "\n"
+
+	recipient, err := age.NewScryptRecipient(masterPassword)
+	if err != nil {
+		return fmt.Errorf("failed to create scrypt recipient: %w", err)
+	}
+
+	var buf bytes.Buffer
+	armorWriter := armor.NewWriter(&buf)
+	w, err := age.Encrypt(armorWriter, recipient)
+	if err != nil {
+		return fmt.Errorf("failed to create encrypted writer: %w", err)
+	}
+	if _, err := w.Write([]byte(combined)); err != nil {
+		return fmt.Errorf("failed to write identities: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to close encrypted writer: %w", err)
+	}
+	if err := armorWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close armor writer: %w", err)
+	}
+
+	return os.WriteFile(path, buf.Bytes(), pago.FilePerms)
+}
+
+// encryptEntry writes an age-armored ciphertext for plaintext encrypted to the
+// given recipient at store/<name>.age.
+func encryptEntry(dataDir, name, plaintext string, recipient age.Recipient) error {
+	var buf bytes.Buffer
+	armorWriter := armor.NewWriter(&buf)
+	w, err := age.Encrypt(armorWriter, recipient)
+	if err != nil {
+		return fmt.Errorf("failed to create encrypted writer: %w", err)
+	}
+	if _, err := w.Write([]byte(plaintext)); err != nil {
+		return fmt.Errorf("failed to write plaintext: %w", err)
+	}
+	if err := w.Close(); err != nil {
+		return fmt.Errorf("failed to close encrypted writer: %w", err)
+	}
+	if err := armorWriter.Close(); err != nil {
+		return fmt.Errorf("failed to close armor writer: %w", err)
+	}
+
+	return os.WriteFile(filepath.Join(dataDir, "store", name+".age"), buf.Bytes(), pago.FilePerms)
+}
+
+func TestRekeyUpdatesAgent(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		// Add an entry encrypted under the original identity.
+		_, _, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "foo", "--length", "32", "--pattern", "[a]", "--random",
+		)
+		if err != nil {
+			return "", err
+		}
+
+		socketPath := filepath.Join(dataDir, "agent.sock")
+
+		// Start the agent. It caches only the original identity.
+		startConsole, err := expect.NewConsole()
+		if err != nil {
+			return "", fmt.Errorf("failed to create console: %w", err)
+		}
+		defer startConsole.Close()
+
+		startCmd := exec.Command(
+			commandPago,
+			"--agent", commandPagoAgent,
+			"--dir", dataDir,
+			"--no-memlock",
+			"--socket", socketPath,
+			"agent", "start",
+		)
+		startCmd.Stdin = startConsole.Tty()
+		startCmd.Stdout = startConsole.Tty()
+		startCmd.Stderr = startConsole.Tty()
+
+		if err := startCmd.Start(); err != nil {
+			return "", fmt.Errorf("failed to start agent: %w", err)
+		}
+
+		_, _ = startConsole.ExpectString("Enter password")
+		_, _ = startConsole.SendLine(password)
+
+		if err := startCmd.Wait(); err != nil {
+			return "", fmt.Errorf("agent start failed: %w", err)
+		}
+
+		// Add a second identity Y to the encrypted identities file and to the
+		// recipients. From this point on the agent's cache is stale.
+		newIdentity, err := age.GenerateX25519Identity()
+		if err != nil {
+			return "", fmt.Errorf("failed to generate identity: %w", err)
+		}
+
+		if err := rewriteIdentities(dataDir, password, newIdentity); err != nil {
+			return "", err
+		}
+
+		recipientsPath := filepath.Join(dataDir, "store", ".age-recipients")
+		existingRecipients, err := os.ReadFile(recipientsPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to read recipients: %w", err)
+		}
+
+		bothRecipients := strings.TrimRight(string(existingRecipients), "\n") + "\n" + newIdentity.Recipient().String() + "\n"
+		if err := os.WriteFile(recipientsPath, []byte(bothRecipients), pago.FilePerms); err != nil {
+			return "", fmt.Errorf("failed to write recipients: %w", err)
+		}
+
+		// Run rekey. With the fix this also pushes the fresh identities to
+		// the agent.
+		rekeyConsole, err := expect.NewConsole()
+		if err != nil {
+			return "", fmt.Errorf("failed to create console: %w", err)
+		}
+		defer rekeyConsole.Close()
+
+		rekeyCmd := exec.Command(commandPago, "--dir", dataDir, "--socket", socketPath, "rekey")
+		rekeyCmd.Stdin = rekeyConsole.Tty()
+		rekeyCmd.Stdout = rekeyConsole.Tty()
+		rekeyCmd.Stderr = rekeyConsole.Tty()
+
+		if err := rekeyCmd.Start(); err != nil {
+			return "", fmt.Errorf("failed to start rekey: %w", err)
+		}
+
+		_, _ = rekeyConsole.ExpectString("Enter password")
+		_, _ = rekeyConsole.SendLine(password)
+
+		if err := rekeyCmd.Wait(); err != nil {
+			return "", fmt.Errorf("rekey failed: %w", err)
+		}
+
+		// Place a new entry encrypted to the new identity only. The agent must
+		// have learned about the new identity via rekey, otherwise this entry
+		// is undecryptable through the agent.
+		if err := encryptEntry(dataDir, "bar", strings.Repeat("b", 16), newIdentity.Recipient()); err != nil {
+			return "", err
+		}
+
+		showCmd := exec.Command(commandPago, "--dir", dataDir, "--socket", socketPath, "show", "bar")
+		var showOut bytes.Buffer
+		showCmd.Stdout = &showOut
+		showCmd.Stderr = &showOut
+		showCmd.Stdin = strings.NewReader("")
+
+		if err := showCmd.Run(); err != nil {
+			return showOut.String(), fmt.Errorf("show through agent failed: %w", err)
+		}
+
+		if got := strings.TrimSpace(showOut.String()); got != strings.Repeat("b", 16) {
+			return showOut.String(), fmt.Errorf("expected %q, got %q", strings.Repeat("b", 16), got)
+		}
+
+		// Stop the agent.
+		_, _, _ = runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir, "PAGO_SOCK=" + socketPath},
+			"agent", "stop",
+		)
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Rekey agent reload test failed: %v", err)
+	}
+}
+
 func TestRename(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		// Add an entry.

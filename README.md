@@ -148,10 +148,10 @@ age -d -o "/dev/shm/pago-$USER-temp/identities" ~/.local/share/pago/identities
 echo >> "/dev/shm/pago-$USER-temp/identities"
 cat ~/.ssh/id_ed25519 >> "/dev/shm/pago-$USER-temp/identities"
 age -a -e -p -o ~/.local/share/pago/identities "/dev/shm/pago-$USER-temp/identities"
-
-# Restart the agent to load the new identities.
-pago agent restart
 ```
+
+If the agent is running, the next `pago rekey` or `pago rewrap` will push the updated identities to it.
+You can also reload the agent explicitly with `pago agent restart`.
 
 ### Add passwords
 

@@ -887,6 +887,25 @@ func (cmd *PickCmd) Run(config *Config) error {
 	return showCmd.Run(config)
 }
 
+// pushIdentitiesToAgent forwards fresh identities to a running agent so it
+// does not go stale after a rekey or rewrap. It is a no-op if the agent
+// socket is disabled or no agent is listening.
+func pushIdentitiesToAgent(socket, identitiesText string) error {
+	if socket == "" {
+		return nil
+	}
+
+	if err := agent.Ping(socket); err != nil {
+		return nil //nolint:nilerr // No agent running is not an error here.
+	}
+
+	if _, err := agent.Message(socket, "IDENTITIES", identitiesText); err != nil {
+		return fmt.Errorf("failed to update agent identities: %w", err)
+	}
+
+	return nil
+}
+
 type RekeyCmd struct{}
 
 func (cmd *RekeyCmd) Run(config *Config) error {
@@ -947,6 +966,10 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 	}
 
 	fmt.Fprintf(os.Stderr, "Reencrypted %d %s\n", count, englishPlural("entry", "entries", count))
+
+	if err := pushIdentitiesToAgent(config.Socket, identitiesText); err != nil {
+		return err
+	}
 
 	if config.Git {
 		files := make([]string, len(entries))
@@ -1073,6 +1096,10 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 
 	if err := pago.WriteFileAtomic(config.Identities, buf.Bytes(), pago.FilePerms); err != nil {
 		return fmt.Errorf("failed to write identities file: %w", err)
+	}
+
+	if err := pushIdentitiesToAgent(config.Socket, identitiesText); err != nil {
+		return err
 	}
 
 	fmt.Fprintln(os.Stderr, "Identities file reencrypted")
