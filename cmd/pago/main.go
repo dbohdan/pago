@@ -823,11 +823,11 @@ func (cmd *InitCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to create store directory: %w", err)
 	}
 
-	if err := os.WriteFile(config.Identities, buf.Bytes(), pago.FilePerms); err != nil {
+	if err := pago.WriteFileAtomic(config.Identities, buf.Bytes(), pago.FilePerms); err != nil {
 		return fmt.Errorf("failed to write identities file: %w", err)
 	}
 
-	if err := os.WriteFile(config.Recipients, []byte(identity.Recipient().String()+"\n"), pago.FilePerms); err != nil {
+	if err := pago.WriteFileAtomic(config.Recipients, []byte(identity.Recipient().String()+"\n"), pago.FilePerms); err != nil {
 		return fmt.Errorf("failed to write recipients file: %w", err)
 	}
 
@@ -1047,7 +1047,7 @@ func (cmd *RewrapCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to close armor writer: %w", err)
 	}
 
-	if err := os.WriteFile(config.Identities, buf.Bytes(), pago.FilePerms); err != nil {
+	if err := pago.WriteFileAtomic(config.Identities, buf.Bytes(), pago.FilePerms); err != nil {
 		return fmt.Errorf("failed to write identities file: %w", err)
 	}
 

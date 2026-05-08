@@ -75,13 +75,8 @@ func SaveEntry(recipientsPath, passwordStore, name, password string) error {
 		return fmt.Errorf("failed to create output path: %w", err)
 	}
 
-	f, err := os.Create(dest)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer f.Close()
-
-	armorWriter := armor.NewWriter(f)
+	var buf bytes.Buffer
+	armorWriter := armor.NewWriter(&buf)
 
 	w, err := age.Encrypt(armorWriter, recips...)
 	if err != nil {
@@ -98,6 +93,10 @@ func SaveEntry(recipientsPath, passwordStore, name, password string) error {
 
 	if err := armorWriter.Close(); err != nil {
 		return fmt.Errorf("failed to close armor writer: %w", err)
+	}
+
+	if err := pago.WriteFileAtomic(dest, buf.Bytes(), pago.FilePerms); err != nil {
+		return fmt.Errorf("failed to write entry file: %w", err)
 	}
 
 	return nil

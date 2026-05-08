@@ -37,6 +37,52 @@ func EntryFile(passwordStore, name string) (string, error) {
 	return "", errors.New("entry path is out of bounds")
 }
 
+// WriteFileAtomic writes data to a file by first writing to a temporary file
+// in the same directory and then renaming it to the target path.
+// This prevents the target from being left truncated or partial if the program
+// is interrupted mid-write.
+func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
+	f, err := os.CreateTemp(filepath.Dir(path), ".pago-tmp-*")
+	if err != nil {
+		return fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tmp := f.Name()
+
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmp)
+		}
+	}()
+
+	if err := f.Chmod(perm); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("failed to set permissions on temp file: %w", err)
+	}
+
+	if _, err := f.Write(data); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("failed to write temp file: %w", err)
+	}
+
+	if err := f.Sync(); err != nil {
+		_ = f.Close()
+		return fmt.Errorf("failed to sync temp file: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		return fmt.Errorf("failed to close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmp, path); err != nil {
+		return fmt.Errorf("failed to rename temp file: %w", err)
+	}
+
+	cleanup = false
+
+	return nil
+}
+
 // WaitUntilAvailable waits until a file or directory at the given path exists,
 // or until a maximum duration has passed.
 func WaitUntilAvailable(path string, maximum time.Duration) error {
