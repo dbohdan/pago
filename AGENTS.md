@@ -168,3 +168,17 @@ Do not ask about purely internal choices.
 For large batches (more than five or six independent items), split into phases of four to six commits each.
 Push and pause between phases.
 A regression in an early commit can otherwise cost a lot of unwinding.
+
+## Attribution requirements
+
+AI agents must disclose what tool and model they are using in the "Assisted-by" commit footer:
+
+```none
+Assisted-by: [model name] via [tool name]
+```
+
+Example:
+
+```none
+Assisted-by: Claude Opus 4.7 via Claude Code
+```
