@@ -455,7 +455,8 @@ cap_mkdb /etc/login.conf
     - Linux and BSD: `~/.local/share/pago`
     - macOS: `~/Library/Application Support/pago`
 - `PAGO_EXPIRE`:
-  Agent expiration time after which it will automatically shut down ([Go duration string](https://pkg.go.dev/time#ParseDuration); for example, `1h30m`).
+  Agent expiration time after which it will automatically shut down.
+  Accepts a [Go duration string](https://pkg.go.dev/time#ParseDuration) (for example, `1h30m`) or a bare integer interpreted as seconds.
   Default: no expiration.
 - `PAGO_GIT`:
   Whether to use Git.
@@ -490,6 +491,7 @@ cap_mkdb /etc/login.conf
       - `${TMPDIR:-/tmp}/pago-${username}@${hostname}/socket`
 - `PAGO_TIMEOUT`:
   The default timeout to clear the clipboard.
+  Accepts a [Go duration string](https://pkg.go.dev/time#ParseDuration) (for example, `45s`) or a bare integer interpreted as seconds.
   Default: `30` (seconds).
 
 ### Interactive editor

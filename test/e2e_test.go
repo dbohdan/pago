@@ -231,7 +231,7 @@ func TestClip(t *testing.T) {
 
 		_, _ = c.ExpectString("Enter password")
 		_, _ = c.SendLine(password)
-		_, _ = c.ExpectString("Clearing clipboard in 1 second")
+		_, _ = c.ExpectString("Clearing clipboard in 1s")
 
 		err = cmd.Wait()
 		if err != nil {

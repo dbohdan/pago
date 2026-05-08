@@ -48,7 +48,7 @@ type CLI struct {
 	AgentExecutable string        `short:"a" name:"agent" env:"${AgentEnv}" default:"${DefaultAgent}" help:"Agent executable (${env})"`
 	Confirm         bool          `env:"${ConfirmEnv}" default:"true" negatable:"" help:"Enter passwords twice (${env})"`
 	Dir             string        `short:"d" env:"${DataDirEnv}" default:"${DefaultDataDir}" help:"Store location (${env})"`
-	Expire          time.Duration `short:"e" env:"${ExpireEnv}" default:"0" help:"Agent expiration time (Go duration, 0 to disable, ${env})"`
+	Expire          pago.Duration `short:"e" env:"${ExpireEnv}" default:"0" help:"Agent expiration time (Go duration or integer seconds, 0 to disable, ${env})"`
 	Git             bool          `env:"${GitEnv}" default:"true" negatable:"" help:"Commit to Git (${env})"`
 	GitEmail        string        `env:"${GitEmailEnv}" default:"${GitEmail}" help:"Email for Git commits (${env})"`
 	GitName         string        `env:"${GitNameEnv}" default:"${GitName}" help:"Name for Git commits (${env})"`
@@ -79,7 +79,7 @@ type Config struct {
 	AgentExecutable string
 	Confirm         bool
 	DataDir         string
-	Expire          time.Duration
+	Expire          pago.Duration
 	Git             bool
 	GitEmail        string
 	GitName         string
@@ -213,7 +213,7 @@ func (cmd *RestartCmd) Run(config *Config) error {
 
 	return agent.StartProcess(
 		config.AgentExecutable,
-		config.Expire,
+		config.Expire.Duration(),
 		config.Memlock,
 		config.Socket,
 		identitiesText,
@@ -239,7 +239,7 @@ func (cmd *StartCmd) Run(config *Config) error {
 
 	return agent.StartProcess(
 		config.AgentExecutable,
-		config.Expire,
+		config.Expire.Duration(),
 		config.Memlock,
 		config.Socket,
 		identitiesText,
@@ -283,10 +283,10 @@ func (cmd *StopCmd) Run(config *Config) error {
 type ClipCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
-	Command string   `short:"c" env:"${ClipEnv}" help:"Command for copying text from stdin to clipboard (${env})"`
-	Key     []string `short:"k" help:"Retrieve a key from a TOML entry (repeatable)"`
-	Pick    bool     `short:"p" help:"Pick entry using fuzzy finder"`
-	Timeout int      `short:"t" env:"${TimeoutEnv}" default:"30" help:"Clipboard timeout (0 to disable, ${env})"`
+	Command string        `short:"c" env:"${ClipEnv}" help:"Command for copying text from stdin to clipboard (${env})"`
+	Key     []string      `short:"k" help:"Retrieve a key from a TOML entry (repeatable)"`
+	Pick    bool          `short:"p" help:"Pick entry using fuzzy finder"`
+	Timeout pago.Duration `short:"t" env:"${TimeoutEnv}" default:"30" help:"Clipboard timeout (Go duration or integer seconds, 0 to disable, ${env})"`
 }
 
 // copyToClipboard executes a command to copy text to the system clipboard.
@@ -502,7 +502,7 @@ func (cmd *ClipCmd) Run(config *Config) error {
 
 	password, err := getPassword(
 		config.AgentExecutable,
-		config.Expire,
+		config.Expire.Duration(),
 		config.Memlock,
 		config.Socket,
 		config.Identities,
@@ -518,14 +518,9 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		return fmt.Errorf("failed to copy password to clipboard: %w", err)
 	}
 
-	timeout := time.Duration(cmd.Timeout) * time.Second
+	timeout := cmd.Timeout.Duration()
 	if timeout > 0 {
-		fmt.Fprintf(
-			os.Stderr,
-			"Clearing clipboard in %v %s\n",
-			cmd.Timeout,
-			englishPlural("second", "seconds", cmd.Timeout),
-		)
+		fmt.Fprintf(os.Stderr, "Clearing clipboard in %v\n", timeout)
 
 		time.Sleep(timeout)
 
@@ -651,7 +646,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 		// Decrypt the existing entry content.
 		content, err = decryptEntry(
 			config.AgentExecutable,
-			config.Expire,
+			config.Expire.Duration(),
 			config.Memlock,
 			config.Socket,
 			config.Identities,
@@ -1150,7 +1145,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 	if cmd.Keys {
 		keys, err := getTOMLKeys(
 			config.AgentExecutable,
-			config.Expire,
+			config.Expire.Duration(),
 			config.Memlock,
 			config.Socket,
 			config.Identities,
@@ -1168,7 +1163,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 
 		output, err = getPassword(
 			config.AgentExecutable,
-			config.Expire,
+			config.Expire.Duration(),
 			config.Memlock,
 			config.Socket,
 			config.Identities,

@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"time"
 
 	"dbohdan.com/pago"
 	"dbohdan.com/pago/agent"
@@ -19,7 +18,7 @@ import (
 
 type CLI struct {
 	// Global options.
-	Expire  time.Duration `short:"e" env:"${ExpireEnv}" default:"0" help:"Agent expiration time (Go duration, 0 to disable)"`
+	Expire  pago.Duration `short:"e" env:"${ExpireEnv}" default:"0" help:"Agent expiration time (Go duration or integer seconds, 0 to disable)"`
 	Memlock bool          `env:"${MemlockEnv}" default:"true" negatable:"" help:"Lock agent memory with mlockall(2) (${env})"`
 	Socket  string        `short:"s" env:"${SocketEnv}" default:"${DefaultSocket}" help:"Agent socket path (${env})"`
 
@@ -44,7 +43,7 @@ func (cmd *RunCmd) Run(cli *CLI) error {
 		return fmt.Errorf("failed to create socket directory: %w", err)
 	}
 
-	return agent.Run(cli.Socket, cli.Expire)
+	return agent.Run(cli.Socket, cli.Expire.Duration())
 }
 
 type VersionCmd struct{}

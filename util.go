@@ -11,11 +11,56 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
 
 const waitStep = 50 * time.Millisecond
+
+// Duration is a time.Duration that accepts a bare non-negative integer as a
+// number of seconds when parsed from text. Any other input is parsed by
+// time.ParseDuration. This lets the user write "30" (= 30s) or "1m30s"
+// interchangeably and keeps PAGO_TIMEOUT and PAGO_EXPIRE on the same syntax.
+//
+//nolint:recvcheck // Pointer receiver is required by encoding.TextUnmarshaler.
+type Duration time.Duration
+
+// UnmarshalText implements encoding.TextUnmarshaler so kong and the env-var
+// machinery accept the type directly.
+func (d *Duration) UnmarshalText(text []byte) error {
+	v, err := ParseDuration(string(text))
+	if err != nil {
+		return err
+	}
+
+	*d = Duration(v)
+
+	return nil
+}
+
+func (d Duration) String() string {
+	return time.Duration(d).String()
+}
+
+func (d Duration) Duration() time.Duration {
+	return time.Duration(d)
+}
+
+// ParseDuration parses a Go duration string with the addition that a bare
+// non-negative integer is interpreted as a number of seconds.
+func ParseDuration(s string) (time.Duration, error) {
+	if n, err := strconv.Atoi(s); err == nil && n >= 0 {
+		return time.Duration(n) * time.Second, nil
+	}
+
+	d, err := time.ParseDuration(s)
+	if err != nil {
+		return 0, fmt.Errorf("invalid duration %q: %w", s, err)
+	}
+
+	return d, nil
+}
 
 // EntryFile constructs the full file path for a given entry name in the store.
 // It also validates the entry name for invalid characters and ensures the path is within the store.
