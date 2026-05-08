@@ -185,6 +185,55 @@ func TestAddMultiline(t *testing.T) {
 	}
 }
 
+func TestAddTrim(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		// Add a multiline entry with --trim and a trailing newline.
+		cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "add", "trimmed", "--multiline", "--trim")
+		cmd.Stdin = strings.NewReader("hunter2\n")
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			return stdout.String() + "\n" + stderr.String(), fmt.Errorf("add --trim failed: %w", err)
+		}
+
+		// Show the entry and check that the trailing newline is gone.
+		c, err := expect.NewConsole()
+		if err != nil {
+			return "", fmt.Errorf("failed to create console: %w", err)
+		}
+		defer c.Close()
+
+		var buf bytes.Buffer
+		showCmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "trimmed")
+		showCmd.Stdin = c.Tty()
+		showCmd.Stdout = &buf
+		showCmd.Stderr = c.Tty()
+
+		if err := showCmd.Start(); err != nil {
+			return "", fmt.Errorf("failed to start show: %w", err)
+		}
+
+		_, _ = c.ExpectString("Enter password")
+		_, _ = c.SendLine(password)
+
+		if err := showCmd.Wait(); err != nil {
+			return "", fmt.Errorf("show failed: %w", err)
+		}
+
+		// `show` adds at most one trailing newline; the stored content must be exactly "hunter2".
+		if got := buf.String(); got != "hunter2\n" {
+			return "", fmt.Errorf("expected stored value %q, got %q", "hunter2", got)
+		}
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Command `add --trim` failed: %v", err)
+	}
+}
+
 func TestAddNewline(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		stdout, stderr, err := runCommandEnv(

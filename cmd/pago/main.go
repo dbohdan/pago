@@ -101,6 +101,7 @@ type AddCmd struct {
 	Multiline bool   `short:"m" help:"Read from stdin until EOF" xor:"mode"`
 	Pattern   string `short:"p" env:"${PatternEnv}" default:"${DefaultPattern}" help:"Password pattern (regular expression, ${env})"`
 	Random    bool   `short:"r" help:"Generate a random password" xor:"mode"`
+	Trim      bool   `short:"t" help:"Strip trailing newline characters from the password"`
 }
 
 // printRepr prints a detailed representation of a Go value to stderr for debugging.
@@ -167,6 +168,10 @@ func (cmd *AddCmd) Run(config *Config) error {
 
 	if err != nil {
 		return fmt.Errorf("failed to get password: %w", err)
+	}
+
+	if cmd.Trim {
+		password = strings.TrimRight(password, "\r\n")
 	}
 
 	if err := crypto.SaveEntry(config.Recipients, config.Store, cmd.Name, password); err != nil {

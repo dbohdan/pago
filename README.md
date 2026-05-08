@@ -172,6 +172,10 @@ pago add -i foo/bar
 # This is useful for storing age keys or structured data.
 # See the "TOML entries" section for more on the latter.
 age-keygen | pago add -m foo/bar
+
+# Strip trailing newlines from the password.
+# Useful when piping a single-line secret with `echo`.
+echo hunter2 | pago add -m -t foo/bar
 ```
 
 Adding a password creates a Git commit by default.
