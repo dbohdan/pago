@@ -101,8 +101,6 @@ func AskYesNo(prompt string) (bool, error) {
 		answer = strings.ToLower(string(input[0]))
 	}
 
-	_ = term.Restore(int(os.Stdin.Fd()), oldState)
-
 	fmt.Fprintln(os.Stderr)
 
 	return answer == "y", nil
