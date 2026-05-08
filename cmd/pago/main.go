@@ -16,11 +16,13 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
 	"strings"
+	"syscall"
 	"time"
 
 	"dbohdan.com/pago"
@@ -533,7 +535,16 @@ func (cmd *ClipCmd) Run(config *Config) error {
 	if timeout > 0 {
 		fmt.Fprintf(os.Stderr, "Clearing clipboard in %v\n", timeout)
 
-		time.Sleep(timeout)
+		// Catch SIGINT and SIGTERM so a hasty Ctrl+C does not leave the
+		// password sitting on the clipboard.
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+		defer signal.Stop(sigCh)
+
+		select {
+		case <-time.After(timeout):
+		case <-sigCh:
+		}
 
 		if err := copyToClipboard(cmd.Command, ""); err != nil {
 			return fmt.Errorf("failed to clear clipboard: %w", err)

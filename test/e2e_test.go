@@ -14,7 +14,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"syscall"
 	"testing"
+	"time"
 
 	"dbohdan.com/pago"
 	"dbohdan.com/pago/crypto"
@@ -374,6 +376,87 @@ func TestClip(t *testing.T) {
 	})
 	if err != nil {
 		t.Errorf("Command `clip` failed: %v", err)
+	}
+}
+
+func TestClipSignalClears(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		stdout, stderr, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "foo", "--length", "32", "--pattern", "[a]", "--random",
+		)
+		if err != nil {
+			return stdout + "\n" + stderr, err
+		}
+
+		// A wrapper that records the most recent clipboard contents to a file.
+		// pago invokes this twice: once to copy and once to clear.
+		clipScript := filepath.Join(dataDir, "clip.sh")
+		clipFile := filepath.Join(dataDir, "clipboard.txt")
+
+		script := fmt.Sprintf("#!/bin/sh\ncat > %s\n", clipFile)
+		if err := os.WriteFile(clipScript, []byte(script), 0o755); err != nil {
+			return "", fmt.Errorf("failed to write clipboard script: %w", err)
+		}
+
+		c, err := expect.NewConsole()
+		if err != nil {
+			return "", fmt.Errorf("failed to create console: %w", err)
+		}
+		defer c.Close()
+
+		clip := exec.Command(commandPago, "clip", "-d", dataDir, "-s", "", "-c", clipScript, "-t", "30", "foo")
+		clip.Stdin = c.Tty()
+		clip.Stdout = c.Tty()
+		clip.Stderr = c.Tty()
+
+		if err := clip.Start(); err != nil {
+			return "", fmt.Errorf("failed to start clip: %w", err)
+		}
+
+		_, _ = c.ExpectString("Enter password")
+		_, _ = c.SendLine(password)
+		_, _ = c.ExpectString("Clearing clipboard")
+
+		// At this point the wrapper has been invoked once with the password.
+		got, err := os.ReadFile(clipFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read clipboard file: %w", err)
+		}
+
+		if !regexp.MustCompile(`^a{32}$`).Match(got) {
+			return "", fmt.Errorf("expected password in clipboard file, got %q", got)
+		}
+
+		// Interrupt during the timeout sleep. The signal handler must run the
+		// clear step before the process exits.
+		if err := clip.Process.Signal(syscall.SIGINT); err != nil {
+			return "", fmt.Errorf("failed to signal: %w", err)
+		}
+
+		done := make(chan error, 1)
+		go func() { done <- clip.Wait() }()
+
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			_ = clip.Process.Kill()
+			return "", fmt.Errorf("clip did not exit after SIGINT")
+		}
+
+		got, err = os.ReadFile(clipFile)
+		if err != nil {
+			return "", fmt.Errorf("failed to read clipboard file after signal: %w", err)
+		}
+
+		if len(got) != 0 {
+			return "", fmt.Errorf("expected clipboard cleared, file still contains %q", got)
+		}
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Command `clip` SIGINT clear failed: %v", err)
 	}
 }
 
