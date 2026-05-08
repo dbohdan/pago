@@ -833,26 +833,28 @@ func TestLogNoRepo(t *testing.T) {
 }
 
 func TestFindJSON(t *testing.T) {
-	output, err := withPagoDir(func(dataDir string) (string, error) {
-		for _, name := range []string{"foo", "bar", "baz"} {
-			err := createFakeEntry(dataDir, name)
-			if err != nil {
-				return "", err
+	for _, flag := range []string{"--json", "-j"} {
+		output, err := withPagoDir(func(dataDir string) (string, error) {
+			for _, name := range []string{"foo", "bar", "baz"} {
+				err := createFakeEntry(dataDir, name)
+				if err != nil {
+					return "", err
+				}
 			}
+
+			stdout, _, err := runCommandEnv(
+				[]string{"PAGO_DIR=" + dataDir},
+				"find", flag, "b",
+			)
+			return stdout, err
+		})
+		if err != nil {
+			t.Errorf("Command `find %s` failed: %v", flag, err)
 		}
 
-		stdout, _, err := runCommandEnv(
-			[]string{"PAGO_DIR=" + dataDir},
-			"find", "--json", "b",
-		)
-		return stdout, err
-	})
-	if err != nil {
-		t.Errorf("Command `find --json` failed: %v", err)
-	}
-
-	if got := strings.TrimSpace(output); got != `["bar","baz"]` {
-		t.Errorf("Expected JSON array, got %q", got)
+		if got := strings.TrimSpace(output); got != `["bar","baz"]` {
+			t.Errorf("Expected JSON array for %s, got %q", flag, got)
+		}
 	}
 }
 

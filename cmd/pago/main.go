@@ -847,7 +847,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 type FindCmd struct {
 	Pattern string `arg:"" default:"" help:"Pattern to search for (regular expression)"`
 
-	JSON bool `name:"json" help:"Output as a JSON array"`
+	JSON bool `short:"j" name:"json" help:"Output as a JSON array"`
 }
 
 func (cmd *FindCmd) Run(config *Config) error {
@@ -1124,7 +1124,7 @@ func (cmd *LogCmd) Run(config *Config) error {
 type PickCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
-	JSON bool     `name:"json" help:"Output result as JSON"`
+	JSON bool     `short:"j" name:"json" help:"Output result as JSON"`
 	Key  []string `short:"k" help:"Retrieve a key from a TOML entry (repeatable)"`
 }
 
@@ -1408,7 +1408,7 @@ func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock
 type ShowCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
-	JSON bool     `name:"json" help:"Output result as JSON"`
+	JSON bool     `short:"j" name:"json" help:"Output result as JSON"`
 	Key  []string `short:"k" help:"Retrieve a key from a TOML entry (repeatable)"`
 	Keys bool     `short:"K" help:"List keys in a TOML entry"`
 	Pick bool     `short:"p" help:"Pick entry using fuzzy finder"`
