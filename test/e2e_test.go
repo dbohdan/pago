@@ -680,6 +680,10 @@ func TestFind(t *testing.T) {
 }
 
 func TestGitPassthrough(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git not installed")
+	}
+
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		_, _, err := runCommandEnv(
 			[]string{"PAGO_DIR=" + dataDir},
