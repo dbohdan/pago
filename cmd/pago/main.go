@@ -11,6 +11,7 @@ package main
 import (
 	"bytes"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -419,6 +420,16 @@ func generateOTP(otpURL string) (string, error) {
 	return code, nil
 }
 
+// marshalJSON returns v JSON-encoded as a string.
+func marshalJSON(v any) (string, error) {
+	buf, err := json.Marshal(v)
+	if err != nil {
+		return "", fmt.Errorf("failed to marshal JSON: %w", err)
+	}
+
+	return string(buf), nil
+}
+
 // quoteKeyPath formats a TOML key path for display in error messages.
 // It does so by quoting each key with %q and joining them with periods.
 // For example: []string{"a", "b"} becomes "a"."b".
@@ -433,8 +444,9 @@ func quoteKeyPath(keys []string) string {
 }
 
 // getPassword decrypts an entry and returns its content, or a specific key's
-// value if it's a TOML entry.
-func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string, keys []string) (string, error) {
+// value if it's a TOML entry. When asJSON is true the value is JSON-encoded
+// instead of being formatted for human display.
+func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock bool, agentSocket, identities, passwordStore, name string, keys []string, asJSON bool) (string, error) {
 	content, err := decryptEntry(agentExecutable, agentExpire, agentMemlock, agentSocket, identities, passwordStore, name)
 	if err != nil {
 		return "", fmt.Errorf("failed to decrypt entry: %w", err)
@@ -443,6 +455,10 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 	if !isTOML(content) {
 		if len(keys) > 0 {
 			return "", fmt.Errorf("%q is not a TOML entry; cannot use keys", name)
+		}
+
+		if asJSON {
+			return marshalJSON(content)
 		}
 
 		return content, nil
@@ -454,7 +470,7 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 	}
 
 	effectiveKeys := keys
-	if len(effectiveKeys) == 0 {
+	if len(effectiveKeys) == 0 && !asJSON {
 		key := pago.DefaultTOMLPasswordKey
 
 		if defaultKey, ok := data[pago.TOMLDefaultKey]; ok {
@@ -483,19 +499,30 @@ func getPassword(agentExecutable string, agentExpire time.Duration, agentMemlock
 		value = v
 	}
 
+	if s, ok := value.(string); ok && strings.HasPrefix(s, "otpauth://") {
+		code, err := generateOTP(s)
+		if err != nil {
+			return "", err
+		}
+
+		if asJSON {
+			return marshalJSON(code)
+		}
+
+		return code, nil
+	}
+
+	if asJSON {
+		return marshalJSON(value)
+	}
+
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
 	case reflect.Map:
 		return "", fmt.Errorf("key path %s in entry %q is a table", quoteKeyPath(effectiveKeys), name)
 
 	case reflect.String:
-		s := v.String()
-
-		if strings.HasPrefix(s, "otpauth://") {
-			return generateOTP(s)
-		}
-
-		return s, nil
+		return v.String(), nil
 
 	default:
 		// Do nothing.
@@ -543,6 +570,7 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		config.Store,
 		name,
 		cmd.Key,
+		false,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to get password: %w", err)
@@ -816,6 +844,8 @@ func (cmd *EditCmd) Run(config *Config) error {
 
 type FindCmd struct {
 	Pattern string `arg:"" default:"" help:"Pattern to search for (regular expression)"`
+
+	JSON bool `name:"json" help:"Output as a JSON array"`
 }
 
 func (cmd *FindCmd) Run(config *Config) error {
@@ -831,6 +861,17 @@ func (cmd *FindCmd) Run(config *Config) error {
 	list, err := pago.ListFiles(config.Store, pago.EntryFilter(config.Store, pattern))
 	if err != nil {
 		return fmt.Errorf("failed to search entries: %w", err)
+	}
+
+	if cmd.JSON {
+		buf, err := json.Marshal(list)
+		if err != nil {
+			return fmt.Errorf("failed to marshal JSON: %w", err)
+		}
+
+		fmt.Println(string(buf))
+
+		return nil
 	}
 
 	fmt.Println(strings.Join(list, "\n"))
@@ -1068,12 +1109,13 @@ func (cmd *LogCmd) Run(config *Config) error {
 type PickCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
-	Key []string `short:"k" help:"Retrieve a key from a TOML entry (repeatable)"`
+	JSON bool     `name:"json" help:"Output result as JSON"`
+	Key  []string `short:"k" help:"Retrieve a key from a TOML entry (repeatable)"`
 }
 
 func (cmd *PickCmd) Run(config *Config) error {
 	// This command is a shortcut for "show --pick".
-	showCmd := &ShowCmd{Name: cmd.Name, Key: cmd.Key, Keys: false, Pick: true}
+	showCmd := &ShowCmd{Name: cmd.Name, JSON: cmd.JSON, Key: cmd.Key, Keys: false, Pick: true}
 
 	return showCmd.Run(config)
 }
@@ -1351,6 +1393,7 @@ func getTOMLKeys(agentExecutable string, agentExpire time.Duration, agentMemlock
 type ShowCmd struct {
 	Name string `arg:"" optional:"" help:"Name of the password entry"`
 
+	JSON bool     `name:"json" help:"Output result as JSON"`
 	Key  []string `short:"k" help:"Retrieve a key from a TOML entry (repeatable)"`
 	Keys bool     `short:"K" help:"List keys in a TOML entry"`
 	Pick bool     `short:"p" help:"Pick entry using fuzzy finder"`
@@ -1405,7 +1448,14 @@ func (cmd *ShowCmd) Run(config *Config) error {
 			return fmt.Errorf("failed to get TOML keys: %w", err)
 		}
 
-		output = strings.Join(keys, "\n")
+		if cmd.JSON {
+			output, err = marshalJSON(keys)
+			if err != nil {
+				return err
+			}
+		} else {
+			output = strings.Join(keys, "\n")
+		}
 	} else {
 		var err error
 
@@ -1418,6 +1468,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 			config.Store,
 			name,
 			cmd.Key,
+			cmd.JSON,
 		)
 		if err != nil {
 			return fmt.Errorf("failed to get password: %w", err)

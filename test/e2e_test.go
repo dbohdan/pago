@@ -733,6 +733,105 @@ func TestLogNoRepo(t *testing.T) {
 	}
 }
 
+func TestFindJSON(t *testing.T) {
+	output, err := withPagoDir(func(dataDir string) (string, error) {
+		for _, name := range []string{"foo", "bar", "baz"} {
+			err := createFakeEntry(dataDir, name)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		stdout, _, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"find", "--json", "b",
+		)
+		return stdout, err
+	})
+	if err != nil {
+		t.Errorf("Command `find --json` failed: %v", err)
+	}
+
+	if got := strings.TrimSpace(output); got != `["bar","baz"]` {
+		t.Errorf("Expected JSON array, got %q", got)
+	}
+}
+
+func TestShowJSON(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		// A non-TOML entry should be JSON-encoded as a string.
+		addCmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "add", "plain", "--multiline", "--trim")
+		addCmd.Stdin = strings.NewReader("hunter2\n")
+		if out, err := addCmd.CombinedOutput(); err != nil {
+			return string(out), fmt.Errorf("add plain failed: %w", err)
+		}
+
+		// A TOML entry to traverse.
+		tomlCmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "add", "toml", "--multiline")
+		tomlCmd.Stdin = strings.NewReader(`# TOML
+password = "hunter2"
+n = 5
+arr = [1, 2, 3]
+[nested]
+deep = "value"
+`)
+		if out, err := tomlCmd.CombinedOutput(); err != nil {
+			return string(out), fmt.Errorf("add toml failed: %w", err)
+		}
+
+		cases := []struct {
+			args []string
+			want string
+		}{
+			{[]string{"--json", "plain"}, `"hunter2"`},
+			{[]string{"--json", "-k", "password", "toml"}, `"hunter2"`},
+			{[]string{"--json", "-k", "n", "toml"}, `5`},
+			{[]string{"--json", "-k", "arr", "toml"}, `[1,2,3]`},
+			{[]string{"--json", "-k", "nested", "toml"}, `{"deep":"value"}`},
+			{[]string{"--json", "-K", "toml"}, `["arr","n","nested","password"]`},
+		}
+
+		for _, tc := range cases {
+			c, err := expect.NewConsole()
+			if err != nil {
+				return "", fmt.Errorf("failed to create console: %w", err)
+			}
+
+			args := append([]string{"--dir", dataDir, "--socket", "", "show"}, tc.args...)
+			cmd := exec.Command(commandPago, args...)
+
+			var buf bytes.Buffer
+			cmd.Stdin = c.Tty()
+			cmd.Stdout = &buf
+			cmd.Stderr = c.Tty()
+
+			if err := cmd.Start(); err != nil {
+				_ = c.Close()
+				return "", fmt.Errorf("failed to start show %v: %w", tc.args, err)
+			}
+
+			_, _ = c.ExpectString("Enter password")
+			_, _ = c.SendLine(password)
+
+			if err := cmd.Wait(); err != nil {
+				_ = c.Close()
+				return buf.String(), fmt.Errorf("show %v failed: %w", tc.args, err)
+			}
+
+			_ = c.Close()
+
+			if got := strings.TrimSpace(buf.String()); got != tc.want {
+				return "", fmt.Errorf("show %v: expected %q, got %q", tc.args, tc.want, got)
+			}
+		}
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Command `show --json` failed: %v", err)
+	}
+}
+
 func TestInfoDir(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		stdout, stderr, err := runCommandEnv(

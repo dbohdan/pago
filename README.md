@@ -346,6 +346,28 @@ When an entry is parsed as TOML, pago can retrieve scalar values (strings, numbe
 Arrays and non-string scalars are encoded as TOML for output.
 pago cannot retrieve tables directly, but it can traverse them to access nested values.
 
+### JSON output
+
+`find` and `show` accept `--json` for machine-readable output:
+
+```shell
+# Names of all entries as a JSON array.
+pago find --json
+# => ["bar","baz","foo"]
+
+# Keys of a TOML entry.
+pago show --json -K services/my-api
+# => ["numbers","password","token","url","user"]
+
+# Value of a key, JSON-encoded.
+pago show --json -k numbers services/my-api
+# => [1,1,2,3,5]
+
+# A non-TOML entry comes back as a JSON string.
+pago show --json secret
+# => "hunter2"
+```
+
 ### TOTP
 
 pago can generate [time-based one-time passwords (TOTP)](https://en.wikipedia.org/wiki/Time-based_one-time_password) from a [TOML entry](#toml-entries).
