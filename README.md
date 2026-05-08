@@ -295,6 +295,7 @@ You can retrieve other values from a TOML entry using the `-k`/`--key` option wi
 The option can be repeated to access nested keys.
 To see all available keys in alphabetical order, use the `-K`/`--keys` option with `show`.
 You can combine this with `-k`/`--key` to list keys within a nested table.
+Listing keys decrypts the entry, so it requires the master password just like reading a value does.
 
 ```shell
 # List all keys in the entry.
