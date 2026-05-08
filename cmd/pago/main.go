@@ -583,14 +583,17 @@ func (cmd *ClipCmd) Run(config *Config) error {
 
 	timeout := cmd.Timeout.Duration()
 	if timeout > 0 {
-		fmt.Fprintf(os.Stderr, "Clearing clipboard in %v\n", timeout)
-
 		// Catch SIGINT and SIGTERM so a hasty Ctrl+C does not leave the
-		// password sitting on the clipboard.
+		// password sitting on the clipboard. Register the handler before
+		// announcing the wait, otherwise a signal arriving in the window
+		// between the print and signal.Notify hits Go's default handler
+		// and terminates the process before the clear can run.
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 		defer signal.Stop(sigCh)
+
+		fmt.Fprintf(os.Stderr, "Clearing clipboard in %v\n", timeout)
 
 		select {
 		case <-time.After(timeout):
