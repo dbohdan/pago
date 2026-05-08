@@ -59,28 +59,29 @@ type CLI struct {
 	GitEmail        string        `env:"${GitEmailEnv}" default:"${GitEmail}" help:"Email for Git commits (${env})"`
 	GitName         string        `env:"${GitNameEnv}" default:"${GitName}" help:"Name for Git commits (${env})"`
 	Memlock         bool          `env:"${MemlockEnv}" default:"true" negatable:"" help:"Lock agent memory with mlockall(2) (${env})"`
+	PassphraseFD    int           `name:"passphrase-fd" env:"${PassphraseFDEnv}" default:"-1" help:"Read the master password from this file descriptor instead of prompting (${env})"`
 	Socket          string        `short:"s" env:"${SocketEnv}" default:"${DefaultSocket}" help:"Agent socket path (blank to disable, ${env})"`
 	Verbose         bool          `short:"v" hidden:"" help:"Print debugging information"`
 
 	// Commands.
-	Add      AddCmd      `cmd:"" aliases:"a" help:"Create new password entry"`
-	Agent    AgentCmd    `cmd:"" hidden:"" help:"Control the agent process"`
-	Clip     ClipCmd     `cmd:"" aliases:"c" help:"Copy entry to clipboard"`
-	Copy     CopyCmd     `cmd:"" aliases:"cp,duplicate" help:"Duplicate a password entry"`
-	Delete   DeleteCmd   `cmd:"" aliases:"d,del,rm" help:"Delete password entry"`
-	Edit     EditCmd     `cmd:"" aliases:"e" help:"Edit password entry"`
-	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
-	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
-	GitCommand GitCmd `cmd:"" name:"git" help:"Run git inside the store directory"`
-	Log        LogCmd `cmd:"" help:"Show recent commits in the store's Git history"`
-	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
-	Init     InitCmd     `cmd:"" help:"Create a new password store"`
-	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
-	Rekey    RekeyCmd    `cmd:"" help:"Reencrypt all password entries with the recipients file"`
-	Rename   RenameCmd   `cmd:"" aliases:"mv,r" help:"Rename or move a password entry"`
-	Rewrap   RewrapCmd   `cmd:"" help:"Change the password for the identities file"`
-	Show     ShowCmd     `cmd:"" aliases:"s" help:"Show password entry or list entries"`
-	Version  VersionCmd  `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
+	Add        AddCmd      `cmd:"" aliases:"a" help:"Create new password entry"`
+	Agent      AgentCmd    `cmd:"" hidden:"" help:"Control the agent process"`
+	Clip       ClipCmd     `cmd:"" aliases:"c" help:"Copy entry to clipboard"`
+	Copy       CopyCmd     `cmd:"" aliases:"cp,duplicate" help:"Duplicate a password entry"`
+	Delete     DeleteCmd   `cmd:"" aliases:"d,del,rm" help:"Delete password entry"`
+	Edit       EditCmd     `cmd:"" aliases:"e" help:"Edit password entry"`
+	Find       FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
+	Generate   GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
+	GitCommand GitCmd      `cmd:"" name:"git" help:"Run git inside the store directory"`
+	Log        LogCmd      `cmd:"" help:"Show recent commits in the store's Git history"`
+	Info       InfoCmd     `cmd:"" hidden:"" help:"Show information"`
+	Init       InitCmd     `cmd:"" help:"Create a new password store"`
+	Pick       PickCmd     `cmd:"" aliases:"p" help:"Show password entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
+	Rekey      RekeyCmd    `cmd:"" help:"Reencrypt all password entries with the recipients file"`
+	Rename     RenameCmd   `cmd:"" aliases:"mv,r" help:"Rename or move a password entry"`
+	Rewrap     RewrapCmd   `cmd:"" help:"Change the password for the identities file"`
+	Show       ShowCmd     `cmd:"" aliases:"s" help:"Show password entry or list entries"`
+	Version    VersionCmd  `cmd:"" aliases:"v,ver" help:"Print version number and exit"`
 }
 
 // Config holds the resolved configuration for pago operations.
@@ -588,6 +589,7 @@ func (cmd *ClipCmd) Run(config *Config) error {
 		// password sitting on the clipboard.
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
 		defer signal.Stop(sigCh)
 
 		select {
@@ -922,7 +924,9 @@ func (cmd *GitCmd) Run(config *Config) error {
 		return fmt.Errorf("%s is empty", pago.GitCmdEnv)
 	}
 
-	args := append(parts[1:], "-C", config.Store)
+	args := make([]string, 0, len(parts)-1+2+len(cmd.Args))
+	args = append(args, parts[1:]...)
+	args = append(args, "-C", config.Store)
 	args = append(args, cmd.Args...)
 
 	//nolint:gosec
@@ -1069,16 +1073,16 @@ func (cmd *LogCmd) Run(config *Config) error {
 
 	count := 0
 
-	err = iter.ForEach(func(c *object.Commit) error {
+	err = iter.ForEach(func(commit *object.Commit) error {
 		if count >= cmd.MaxCount {
 			return storer.ErrStop
 		}
 
 		count++
 
-		stats, err := c.Stats()
+		stats, err := commit.Stats()
 		if err != nil {
-			return fmt.Errorf("failed to read stats for %s: %w", c.Hash, err)
+			return fmt.Errorf("failed to read stats for %s: %w", commit.Hash, err)
 		}
 
 		quotedFiles := make([]string, 0, len(stats))
@@ -1086,9 +1090,9 @@ func (cmd *LogCmd) Run(config *Config) error {
 			quotedFiles = append(quotedFiles, fmt.Sprintf("%q", s.Name))
 		}
 
-		subject, _, _ := strings.Cut(c.Message, "\n")
+		subject, _, _ := strings.Cut(commit.Message, "\n")
 
-		parts := []string{c.Author.When.Format("2006-01-02 15:04 -0700")}
+		parts := []string{commit.Author.When.Format("2006-01-02 15:04 -0700")}
 		if len(quotedFiles) > 0 {
 			parts = append(parts, strings.Join(quotedFiles, " "))
 		}
@@ -1431,8 +1435,23 @@ func (cmd *ShowCmd) Run(config *Config) error {
 		return fmt.Errorf("%w: %v", pago.ErrEntryNotFound, cmd.Name)
 	}
 
-	var output string
+	output, err := cmd.fetchOutput(config, name)
+	if err != nil {
+		return err
+	}
 
+	fmt.Print(output)
+
+	if !strings.HasSuffix(output, "\n") {
+		fmt.Println()
+	}
+
+	return nil
+}
+
+// fetchOutput returns the formatted output for `show`, choosing between key
+// listing and value retrieval and applying JSON formatting where requested.
+func (cmd *ShowCmd) fetchOutput(config *Config, name string) (string, error) {
 	if cmd.Keys {
 		keys, err := getTOMLKeys(
 			config.AgentExecutable,
@@ -1445,43 +1464,32 @@ func (cmd *ShowCmd) Run(config *Config) error {
 			cmd.Key,
 		)
 		if err != nil {
-			return fmt.Errorf("failed to get TOML keys: %w", err)
+			return "", fmt.Errorf("failed to get TOML keys: %w", err)
 		}
 
 		if cmd.JSON {
-			output, err = marshalJSON(keys)
-			if err != nil {
-				return err
-			}
-		} else {
-			output = strings.Join(keys, "\n")
+			return marshalJSON(keys)
 		}
-	} else {
-		var err error
 
-		output, err = getPassword(
-			config.AgentExecutable,
-			config.Expire.Duration(),
-			config.Memlock,
-			config.Socket,
-			config.Identities,
-			config.Store,
-			name,
-			cmd.Key,
-			cmd.JSON,
-		)
-		if err != nil {
-			return fmt.Errorf("failed to get password: %w", err)
-		}
+		return strings.Join(keys, "\n"), nil
 	}
 
-	fmt.Print(output)
-
-	if !strings.HasSuffix(output, "\n") {
-		fmt.Println()
+	output, err := getPassword(
+		config.AgentExecutable,
+		config.Expire.Duration(),
+		config.Memlock,
+		config.Socket,
+		config.Identities,
+		config.Store,
+		name,
+		cmd.Key,
+		cmd.JSON,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to get password: %w", err)
 	}
 
-	return nil
+	return output, nil
 }
 
 type VersionCmd struct{}
@@ -1616,20 +1624,21 @@ func main() {
 			"GitEmail":       GitEmail,
 			"GitName":        GitName,
 
-			"AgentEnv":    pago.AgentEnv,
-			"ClipEnv":     pago.ClipEnv,
-			"ConfirmEnv":  pago.ConfirmEnv,
-			"DataDirEnv":  pago.DataDirEnv,
-			"GitEmailEnv": pago.GitEmailEnv,
-			"GitEnv":      pago.GitEnv,
-			"GitNameEnv":  pago.GitNameEnv,
-			"MemlockEnv":  pago.MemlockEnv,
-			"ExpireEnv":   pago.ExpireEnv,
-			"MouseEnv":    pago.MouseEnv,
-			"SocketEnv":   pago.SocketEnv,
-			"TimeoutEnv":  pago.TimeoutEnv,
-			"LengthEnv":   pago.LengthEnv,
-			"PatternEnv":  pago.PatternEnv,
+			"AgentEnv":        pago.AgentEnv,
+			"ClipEnv":         pago.ClipEnv,
+			"ConfirmEnv":      pago.ConfirmEnv,
+			"DataDirEnv":      pago.DataDirEnv,
+			"GitEmailEnv":     pago.GitEmailEnv,
+			"GitEnv":          pago.GitEnv,
+			"GitNameEnv":      pago.GitNameEnv,
+			"MemlockEnv":      pago.MemlockEnv,
+			"ExpireEnv":       pago.ExpireEnv,
+			"MouseEnv":        pago.MouseEnv,
+			"PassphraseFDEnv": pago.PassphraseFDEnv,
+			"SocketEnv":       pago.SocketEnv,
+			"TimeoutEnv":      pago.TimeoutEnv,
+			"LengthEnv":       pago.LengthEnv,
+			"PatternEnv":      pago.PatternEnv,
 		},
 	)
 
@@ -1653,6 +1662,10 @@ func main() {
 	ctx, err := parser.Parse(args)
 	if err != nil {
 		parser.FatalIfErrorf(err)
+	}
+
+	if err := input.SetPassphraseFD(cli.PassphraseFD); err != nil {
+		pago.ExitWithError("%v", err)
 	}
 
 	config, err := initConfig(&cli)

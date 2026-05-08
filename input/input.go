@@ -54,8 +54,44 @@ func IsTerminal() bool {
 	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
+var passphraseScanner *bufio.Scanner
+
+// SetPassphraseFD configures SecureRead to consume passphrases from the given
+// file descriptor (one line per call) instead of prompting on stdin or the
+// terminal. A negative descriptor disables the override.
+func SetPassphraseFD(descriptor int) error {
+	if descriptor < 0 {
+		passphraseScanner = nil
+
+		return nil
+	}
+
+	f := os.NewFile(uintptr(descriptor), "passphrase")
+	if f == nil {
+		return fmt.Errorf("invalid passphrase file descriptor: %d", descriptor)
+	}
+
+	passphraseScanner = bufio.NewScanner(f)
+
+	return nil
+}
+
 // SecureRead reads a password without echo if standard input is a terminal.
+// If a passphrase file descriptor has been configured, the passphrase is read
+// from the next line of that descriptor instead.
 func SecureRead(prompt string) (string, error) {
+	if passphraseScanner != nil {
+		if !passphraseScanner.Scan() {
+			if err := passphraseScanner.Err(); err != nil {
+				return "", fmt.Errorf("failed to read passphrase from fd: %w", err)
+			}
+
+			return "", errors.New("passphrase file descriptor exhausted")
+		}
+
+		return passphraseScanner.Text(), nil
+	}
+
 	fmt.Fprint(os.Stderr, prompt)
 
 	fd := int(os.Stdin.Fd())

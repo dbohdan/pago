@@ -551,6 +551,10 @@ pago uses these exit codes so scripts and agents can branch on the failure mode 
   Whether the agent should lock its memory using [mlockall(2)](https://pubs.opengroup.org/onlinepubs/9799919799/functions/mlockall.html) to prevent secrets from being written to swap.
   `0` to disable.
   Default: `1` (enabled).
+- `PAGO_PASSPHRASE_FD`:
+  Read the master password from this file descriptor (one line per prompt) instead of the terminal.
+  Useful for scripting and automation.
+  Default: `-1` (disabled).
 - `PAGO_MOUSE`:
   Whether to enable mouse support in the interactive editor.
   `0` to disable.

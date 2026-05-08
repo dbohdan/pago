@@ -132,6 +132,48 @@ func requireExitCode(t *testing.T, want int, err error) {
 	}
 }
 
+func TestPassphraseFD(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		// Add an entry with known content (no TTY needed).
+		addCmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "add", "foo", "--multiline", "--trim")
+		addCmd.Stdin = strings.NewReader("hunter2\n")
+		if out, err := addCmd.CombinedOutput(); err != nil {
+			return string(out), fmt.Errorf("add failed: %w", err)
+		}
+
+		r, w, err := os.Pipe()
+		if err != nil {
+			return "", fmt.Errorf("failed to create pipe: %w", err)
+		}
+		defer r.Close()
+
+		go func() {
+			_, _ = w.Write([]byte(password + "\n"))
+			_ = w.Close()
+		}()
+
+		cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "--passphrase-fd", "3", "show", "foo")
+		cmd.ExtraFiles = []*os.File{r}
+
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+
+		if err := cmd.Run(); err != nil {
+			return stdout.String() + "\n" + stderr.String(), fmt.Errorf("show with --passphrase-fd failed: %w", err)
+		}
+
+		if got := stdout.String(); got != "hunter2\n" {
+			return "", fmt.Errorf("expected %q, got %q", "hunter2\n", got)
+		}
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Command `--passphrase-fd` failed: %v", err)
+	}
+}
+
 func TestExitCodeNotFound(t *testing.T) {
 	_, err := withPagoDir(func(dataDir string) (string, error) {
 		_, _, err := runCommandEnv(
