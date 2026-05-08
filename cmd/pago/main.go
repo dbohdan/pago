@@ -1071,40 +1071,51 @@ func (cmd *LogCmd) Run(config *Config) error {
 	}
 	defer iter.Close()
 
-	count := 0
+	type entry struct {
+		date    string
+		files   string
+		subject string
+	}
+
+	entries := []entry{}
+	maxFiles := 0
 
 	err = iter.ForEach(func(commit *object.Commit) error {
-		if count >= cmd.MaxCount {
+		if len(entries) >= cmd.MaxCount {
 			return storer.ErrStop
 		}
-
-		count++
 
 		stats, err := commit.Stats()
 		if err != nil {
 			return fmt.Errorf("failed to read stats for %s: %w", commit.Hash, err)
 		}
 
-		quotedFiles := make([]string, 0, len(stats))
+		quoted := make([]string, 0, len(stats))
 		for _, s := range stats {
-			quotedFiles = append(quotedFiles, fmt.Sprintf("%q", s.Name))
+			quoted = append(quoted, fmt.Sprintf("%q", s.Name))
+		}
+
+		files := strings.Join(quoted, " ")
+		if len(files) > maxFiles {
+			maxFiles = len(files)
 		}
 
 		subject, _, _ := strings.Cut(commit.Message, "\n")
 
-		parts := []string{commit.Author.When.Format("2006-01-02 15:04 -0700")}
-		if len(quotedFiles) > 0 {
-			parts = append(parts, strings.Join(quotedFiles, " "))
-		}
-
-		parts = append(parts, subject)
-
-		fmt.Println(strings.Join(parts, " "))
+		entries = append(entries, entry{
+			date:    commit.Author.When.Format("2006-01-02 15:04 -0700"),
+			files:   files,
+			subject: subject,
+		})
 
 		return nil
 	})
 	if err != nil && !errors.Is(err, storer.ErrStop) {
 		return fmt.Errorf("log iteration failed: %w", err)
+	}
+
+	for _, e := range entries {
+		fmt.Printf("%s %-*s %s\n", e.date, maxFiles, e.files, e.subject)
 	}
 
 	return nil

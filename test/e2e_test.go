@@ -770,10 +770,11 @@ func TestLog(t *testing.T) {
 
 	dateRe := `\d{4}-\d{2}-\d{2} \d{2}:\d{2} [+-]\d{4}`
 
+	// Files column is padded to the width of the longest entry ("baz/qux.age").
 	for _, re := range []string{
 		dateRe + ` "baz/qux\.age" add "baz/qux"`,
-		dateRe + ` "bar\.age" add "bar"`,
-		dateRe + ` "foo\.age" add "foo"`,
+		dateRe + ` "bar\.age" {5}add "bar"`,
+		dateRe + ` "foo\.age" {5}add "foo"`,
 	} {
 		if matched, _ := regexp.MatchString(re, output); !matched {
 			t.Errorf("Expected line matching %q in log output, got %q", re, output)
