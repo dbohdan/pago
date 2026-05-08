@@ -46,6 +46,7 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	if err != nil {
 		return fmt.Errorf("failed to create temp file: %w", err)
 	}
+
 	tmp := f.Name()
 
 	cleanup := true
@@ -57,16 +58,19 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 
 	if err := f.Chmod(perm); err != nil {
 		_ = f.Close()
+
 		return fmt.Errorf("failed to set permissions on temp file: %w", err)
 	}
 
 	if _, err := f.Write(data); err != nil {
 		_ = f.Close()
+
 		return fmt.Errorf("failed to write temp file: %w", err)
 	}
 
 	if err := f.Sync(); err != nil {
 		_ = f.Close()
+
 		return fmt.Errorf("failed to sync temp file: %w", err)
 	}
 
