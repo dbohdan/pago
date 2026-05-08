@@ -42,6 +42,13 @@ It has the following differences:
 
 An attacker who obtains your pago directory but not the master password should be unable to access the stored passwords except by [brute-forcing](https://en.wikipedia.org/wiki/Brute-force_attack) the master password.
 
+pago does not protect against an attacker who runs code as your user.
+While the agent is running, that attacker can simply invoke pago to read each entry.
+Without the agent, the attacker can wait for you to enter the master password and capture it.
+
+pago does try to protect against co-resident users on a shared system.
+The data directory, the agent socket, and the directory that contains the socket are created with permissions that deny access to anyone but you.
+
 ## Motivation and alternatives
 
 My primary password manager is [KeePassXC](https://github.com/keepassxreboot/keepassxc).
