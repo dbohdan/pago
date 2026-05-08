@@ -40,7 +40,10 @@ import (
 	"github.com/alecthomas/repr"
 	"github.com/anmitsu/go-shlex"
 	"github.com/atotto/clipboard"
+	gogit "github.com/go-git/go-git/v5"
 	gitConfig "github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/plumbing/storer"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 )
@@ -68,6 +71,7 @@ type CLI struct {
 	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
 	GitCommand GitCmd `cmd:"" name:"git" help:"Run git inside the store directory"`
+	Log        LogCmd `cmd:"" help:"Show recent commits in the store's Git history"`
 	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
 	Init     InitCmd     `cmd:"" help:"Create a new password store"`
 	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
@@ -988,6 +992,74 @@ func (cmd *InitCmd) Run(config *Config) error {
 		); err != nil {
 			return fmt.Errorf("failed to commit to Git: %w", err)
 		}
+	}
+
+	return nil
+}
+
+type LogCmd struct {
+	MaxCount int `short:"n" default:"10" help:"Maximum number of commits to show"`
+}
+
+func (cmd *LogCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	repo, err := gogit.PlainOpen(config.Store)
+	if err != nil {
+		if errors.Is(err, gogit.ErrRepositoryNotExists) {
+			return errors.New("the store directory is not a Git repository")
+		}
+
+		return fmt.Errorf("failed to open Git repository: %w", err)
+	}
+
+	ref, err := repo.Head()
+	if err != nil {
+		return fmt.Errorf("failed to resolve HEAD: %w", err)
+	}
+
+	iter, err := repo.Log(&gogit.LogOptions{From: ref.Hash()}) //nolint:exhaustruct
+	if err != nil {
+		return fmt.Errorf("failed to read log: %w", err)
+	}
+	defer iter.Close()
+
+	count := 0
+
+	err = iter.ForEach(func(c *object.Commit) error {
+		if count >= cmd.MaxCount {
+			return storer.ErrStop
+		}
+
+		count++
+
+		stats, err := c.Stats()
+		if err != nil {
+			return fmt.Errorf("failed to read stats for %s: %w", c.Hash, err)
+		}
+
+		quotedFiles := make([]string, 0, len(stats))
+		for _, s := range stats {
+			quotedFiles = append(quotedFiles, fmt.Sprintf("%q", s.Name))
+		}
+
+		subject, _, _ := strings.Cut(c.Message, "\n")
+
+		parts := []string{c.Author.When.Format("2006-01-02 15:04 -0700")}
+		if len(quotedFiles) > 0 {
+			parts = append(parts, strings.Join(quotedFiles, " "))
+		}
+
+		parts = append(parts, subject)
+
+		fmt.Println(strings.Join(parts, " "))
+
+		return nil
+	})
+	if err != nil && !errors.Is(err, storer.ErrStop) {
+		return fmt.Errorf("log iteration failed: %w", err)
 	}
 
 	return nil

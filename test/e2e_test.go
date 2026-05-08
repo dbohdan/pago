@@ -648,6 +648,91 @@ func TestGitPassthroughCustomCmd(t *testing.T) {
 	}
 }
 
+func TestLog(t *testing.T) {
+	output, err := withPagoDir(func(dataDir string) (string, error) {
+		for _, name := range []string{"foo", "bar", "baz/qux"} {
+			_, _, err := runCommandEnv(
+				[]string{"PAGO_DIR=" + dataDir},
+				"add", name, "--random",
+			)
+			if err != nil {
+				return "", err
+			}
+		}
+
+		stdout, stderr, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"log", "-n", "3",
+		)
+		return stdout + "\n" + stderr, err
+	})
+	if err != nil {
+		t.Errorf("Command `log` failed: %v", err)
+	}
+
+	dateRe := `\d{4}-\d{2}-\d{2} \d{2}:\d{2} [+-]\d{4}`
+
+	for _, re := range []string{
+		dateRe + ` "baz/qux\.age" add "baz/qux"`,
+		dateRe + ` "bar\.age" add "bar"`,
+		dateRe + ` "foo\.age" add "foo"`,
+	} {
+		if matched, _ := regexp.MatchString(re, output); !matched {
+			t.Errorf("Expected line matching %q in log output, got %q", re, output)
+		}
+	}
+
+	// -n 3 must not include the initial commit.
+	if matched, _ := regexp.MatchString(`Initial commit`, output); matched {
+		t.Errorf("Did not expect 'Initial commit' with -n 3, got %q", output)
+	}
+}
+
+func TestLogNoRepo(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "pago-test-log-no-git-")
+	if err != nil {
+		t.Fatalf("failed to create tempdir: %v", err)
+	}
+
+	t.Cleanup(func() { _ = os.RemoveAll(tempDir) })
+
+	c, err := expect.NewConsole()
+	if err != nil {
+		t.Fatalf("failed to create console: %v", err)
+	}
+	defer c.Close()
+
+	initCmd := exec.Command(commandPago, "--dir", tempDir, "--no-git", "init")
+	initCmd.Stdin = c.Tty()
+	initCmd.Stdout = c.Tty()
+	initCmd.Stderr = c.Tty()
+	if err := initCmd.Start(); err != nil {
+		t.Fatalf("failed to start init: %v", err)
+	}
+
+	_, _ = c.ExpectString("Enter password")
+	_, _ = c.SendLine(password)
+	_, _ = c.ExpectString("again")
+	_, _ = c.SendLine(password)
+
+	if err := initCmd.Wait(); err != nil {
+		t.Fatalf("init failed: %v", err)
+	}
+
+	stdout, stderr, err := runCommandEnv(
+		[]string{"PAGO_DIR=" + tempDir},
+		"log",
+	)
+	if err == nil {
+		t.Error("Expected `log` to fail in a non-Git store")
+	}
+
+	output := stdout + "\n" + stderr
+	if matched, _ := regexp.MatchString(`not a Git repository`, output); !matched {
+		t.Errorf("Expected 'not a Git repository' in output, got %q", output)
+	}
+}
+
 func TestInfoDir(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		stdout, stderr, err := runCommandEnv(

@@ -384,6 +384,18 @@ pago git push -u origin main
 
 The command pago invokes is configurable with `PAGO_GIT_CMD` (default: `git`).
 
+A self-contained one-line history view is also available without invoking git:
+
+```shell
+# Show the latest 10 commits.
+pago log
+
+# Show the latest 5.
+pago log -n 5
+```
+
+Each line has the form `YYYY-MM-DD HH:MM ZZ "file" ["file" ...] message` with the changed file names in `%q` quoting.
+
 ### Agent
 
 The agent keeps your identities in memory to avoid repeated password prompts.
