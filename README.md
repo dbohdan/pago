@@ -372,6 +372,18 @@ pago show -k otp services/my-service
 pago clip -k otp services/my-service
 ```
 
+### Git operations
+
+```shell
+# Run any git command in the password store directory.
+pago git log --oneline
+pago git status
+pago git remote add origin git@example.com:me/pago-store.git
+pago git push -u origin main
+```
+
+The command pago invokes is configurable with `PAGO_GIT_CMD` (default: `git`).
+
 ### Agent
 
 The agent keeps your identities in memory to avoid repeated password prompts.
@@ -481,6 +493,9 @@ cap_mkdb /etc/login.conf
   Whether to use Git.
   `0` to disable.
   Default: `1` (enabled).
+- `PAGO_GIT_CMD`:
+  The git command used by `pago git`.
+  Default: `git`.
 - `PAGO_LENGTH`:
   The default length of random passwords.
   Default: `20`.

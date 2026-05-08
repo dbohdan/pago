@@ -581,6 +581,73 @@ func TestFind(t *testing.T) {
 	}
 }
 
+func TestGitPassthrough(t *testing.T) {
+	output, err := withPagoDir(func(dataDir string) (string, error) {
+		_, _, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "foo", "--random",
+		)
+		if err != nil {
+			return "", err
+		}
+
+		stdout, stderr, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"git", "log", "--oneline",
+		)
+		return stdout + "\n" + stderr, err
+	})
+	if err != nil {
+		t.Errorf("Command `git log` failed: %v", err)
+	}
+
+	for _, re := range []string{`Initial commit`, `add "foo"`} {
+		if matched, _ := regexp.MatchString(re, output); !matched {
+			t.Errorf("Expected %q in git log output, got %q", re, output)
+		}
+	}
+}
+
+func TestGitPassthroughCustomCmd(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		// Verify PAGO_GIT_CMD is honored by replacing git with a wrapper that
+		// records its arguments.
+		marker := filepath.Join(dataDir, "git-wrapper.out")
+		wrapper := filepath.Join(dataDir, "fake-git.sh")
+
+		script := fmt.Sprintf("#!/bin/sh\nprintf '%%s\\n' \"$@\" > %s\n", marker)
+		if err := os.WriteFile(wrapper, []byte(script), 0o755); err != nil {
+			return "", fmt.Errorf("failed to write wrapper: %w", err)
+		}
+
+		_, _, err := runCommandEnv(
+			[]string{
+				"PAGO_DIR=" + dataDir,
+				"PAGO_GIT_CMD=" + wrapper,
+			},
+			"git", "status", "--porcelain",
+		)
+		if err != nil {
+			return "", err
+		}
+
+		got, err := os.ReadFile(marker)
+		if err != nil {
+			return "", fmt.Errorf("wrapper did not run: %w", err)
+		}
+
+		want := "-C\n" + filepath.Join(dataDir, "store") + "\nstatus\n--porcelain\n"
+		if string(got) != want {
+			return "", fmt.Errorf("wrapper got %q, want %q", got, want)
+		}
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("Command `git` with PAGO_GIT_CMD failed: %v", err)
+	}
+}
+
 func TestInfoDir(t *testing.T) {
 	output, err := withPagoDir(func(dataDir string) (string, error) {
 		stdout, stderr, err := runCommandEnv(

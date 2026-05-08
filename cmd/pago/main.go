@@ -67,6 +67,7 @@ type CLI struct {
 	Edit     EditCmd     `cmd:"" aliases:"e" help:"Edit password entry"`
 	Find     FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
 	Generate GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
+	GitCommand GitCmd `cmd:"" name:"git" help:"Run git inside the store directory"`
 	Info     InfoCmd     `cmd:"" hidden:"" help:"Show information"`
 	Init     InitCmd     `cmd:"" help:"Create a new password store"`
 	Pick     PickCmd     `cmd:"" aliases:"p" help:"Show password entry picked with a fuzzy finder. A shortcut for \"show --pick\"."`
@@ -849,6 +850,45 @@ func (cmd *GenerateCmd) Run(config *Config) error {
 	}
 
 	fmt.Println(password)
+
+	return nil
+}
+
+type GitCmd struct {
+	Args []string `arg:"" optional:"" passthrough:"" help:"Arguments to pass to git"`
+}
+
+func (cmd *GitCmd) Run(config *Config) error {
+	if config.Verbose {
+		printRepr(cmd)
+	}
+
+	gitCmd := os.Getenv(pago.GitCmdEnv)
+	if gitCmd == "" {
+		gitCmd = "git"
+	}
+
+	parts, err := shlex.Split(gitCmd, true)
+	if err != nil {
+		return fmt.Errorf("failed to split git command: %w", err)
+	}
+
+	if len(parts) == 0 {
+		return fmt.Errorf("%s is empty", pago.GitCmdEnv)
+	}
+
+	args := append(parts[1:], "-C", config.Store)
+	args = append(args, cmd.Args...)
+
+	//nolint:gosec
+	runCmd := exec.Command(parts[0], args...)
+	runCmd.Stdin = os.Stdin
+	runCmd.Stdout = os.Stdout
+	runCmd.Stderr = os.Stderr
+
+	if err := runCmd.Run(); err != nil {
+		return fmt.Errorf("git command failed: %w", err)
+	}
 
 	return nil
 }
