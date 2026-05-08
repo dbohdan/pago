@@ -12,7 +12,6 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strings"
 
 	"dbohdan.com/pago"
@@ -248,23 +247,4 @@ func DecryptEntry(identitiesPath, passwordStore, name string) (string, error) {
 	}
 
 	return string(content), nil
-}
-
-// EntryFile constructs the full file path for a given entry name in the store.
-// It also checks the entry name for invalid characters and ensures the path is within the store.
-func EntryFile(passwordStore, name string) (string, error) {
-	re := regexp.MustCompile(pago.NameInvalidChars)
-	if re.MatchString(name) {
-		return "", fmt.Errorf("entry name contains invalid characters matching %s", pago.NameInvalidChars)
-	}
-
-	file := filepath.Join(passwordStore, name+pago.AgeExt)
-
-	for path := file; path != "/"; path = filepath.Dir(path) {
-		if path == passwordStore {
-			return file, nil
-		}
-	}
-
-	return "", errors.New("entry path is out of bounds")
 }

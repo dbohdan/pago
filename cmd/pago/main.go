@@ -895,7 +895,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 	count := 0
 
 	for _, entry := range entries {
-		file, err := crypto.EntryFile(config.Store, entry)
+		file, err := pago.EntryFile(config.Store, entry)
 		if err != nil {
 			return fmt.Errorf("failed to get path for %q: %w", entry, err)
 		}
@@ -927,7 +927,7 @@ func (cmd *RekeyCmd) Run(config *Config) error {
 	if config.Git {
 		files := make([]string, len(entries))
 		for i, entry := range entries {
-			file, err := crypto.EntryFile(config.Store, entry)
+			file, err := pago.EntryFile(config.Store, entry)
 			if err != nil {
 				return fmt.Errorf("failed to get path for %q: %w", entry, err)
 			}
@@ -1275,7 +1275,7 @@ func pathExists(path string) bool {
 
 // entryExists checks if an entry with the given name exists in the store.
 func entryExists(passwordStore, name string) bool {
-	file, err := crypto.EntryFile(passwordStore, name)
+	file, err := pago.EntryFile(passwordStore, name)
 	if err != nil {
 		return false
 	}
