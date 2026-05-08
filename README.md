@@ -404,7 +404,7 @@ pago git remote add origin git@example.com:me/pago-store.git
 pago git push -u origin main
 ```
 
-The command pago invokes is configurable with `PAGO_GIT_CMD` (default: `git`).
+The command pago invokes is configurable with `--git-command`/`PAGO_GIT_COMMAND` (default: `git`).
 
 A self-contained one-line history view is also available without invoking git:
 
@@ -541,8 +541,8 @@ pago uses these exit codes so scripts and agents can branch on the failure mode 
   Whether to use Git.
   `0` to disable.
   Default: `1` (enabled).
-- `PAGO_GIT_CMD`:
-  The git command used by `pago git`.
+- `PAGO_GIT_COMMAND`:
+  The Git command used by `pago git`.
   Default: `git`.
 - `PAGO_LENGTH`:
   The default length of random passwords.

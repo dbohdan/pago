@@ -708,8 +708,8 @@ func TestGitPassthrough(t *testing.T) {
 
 func TestGitPassthroughCustomCmd(t *testing.T) {
 	_, err := withPagoDir(func(dataDir string) (string, error) {
-		// Verify PAGO_GIT_CMD is honored by replacing git with a wrapper that
-		// records its arguments.
+		// Verify PAGO_GIT_COMMAND is honored by replacing git with a wrapper
+		// that records its arguments.
 		marker := filepath.Join(dataDir, "git-wrapper.out")
 		wrapper := filepath.Join(dataDir, "fake-git.sh")
 
@@ -721,7 +721,7 @@ func TestGitPassthroughCustomCmd(t *testing.T) {
 		_, _, err := runCommandEnv(
 			[]string{
 				"PAGO_DIR=" + dataDir,
-				"PAGO_GIT_CMD=" + wrapper,
+				"PAGO_GIT_COMMAND=" + wrapper,
 			},
 			"git", "status", "--porcelain",
 		)
@@ -742,7 +742,7 @@ func TestGitPassthroughCustomCmd(t *testing.T) {
 		return "", nil
 	})
 	if err != nil {
-		t.Errorf("Command `git` with PAGO_GIT_CMD failed: %v", err)
+		t.Errorf("Command `git` with PAGO_GIT_COMMAND failed: %v", err)
 	}
 }
 

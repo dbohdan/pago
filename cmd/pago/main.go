@@ -72,7 +72,7 @@ type CLI struct {
 	Edit       EditCmd     `cmd:"" aliases:"e" help:"Edit password entry"`
 	Find       FindCmd     `cmd:"" aliases:"f" help:"Find entry by name"`
 	Generate   GenerateCmd `cmd:"" aliases:"g,gen" help:"Generate and print password"`
-	GitCommand GitCmd      `cmd:"" name:"git" help:"Run git inside the store directory"`
+	GitCommand GitCmd      `cmd:"" name:"git" help:"Run Git inside the store directory"`
 	Log        LogCmd      `cmd:"" help:"Show recent commits in the store's Git history"`
 	Info       InfoCmd     `cmd:"" hidden:"" help:"Show information"`
 	Init       InitCmd     `cmd:"" help:"Create a new password store"`
@@ -902,7 +902,8 @@ func (cmd *GenerateCmd) Run(config *Config) error {
 }
 
 type GitCmd struct {
-	Args []string `arg:"" optional:"" passthrough:"" help:"Arguments to pass to git"`
+	Command string   `name:"git-command" env:"${GitCommandEnv}" default:"git" help:"Git command to invoke (${env})"`
+	Args    []string `arg:"" optional:"" passthrough:"" help:"Arguments to pass to Git"`
 }
 
 func (cmd *GitCmd) Run(config *Config) error {
@@ -910,18 +911,13 @@ func (cmd *GitCmd) Run(config *Config) error {
 		printRepr(cmd)
 	}
 
-	gitCmd := os.Getenv(pago.GitCmdEnv)
-	if gitCmd == "" {
-		gitCmd = "git"
-	}
-
-	parts, err := shlex.Split(gitCmd, true)
+	parts, err := shlex.Split(cmd.Command, true)
 	if err != nil {
 		return fmt.Errorf("failed to split git command: %w", err)
 	}
 
 	if len(parts) == 0 {
-		return fmt.Errorf("%s is empty", pago.GitCmdEnv)
+		return errors.New("git command is empty")
 	}
 
 	args := make([]string, 0, len(parts)-1+2+len(cmd.Args))
@@ -1639,6 +1635,7 @@ func main() {
 			"ClipEnv":         pago.ClipEnv,
 			"ConfirmEnv":      pago.ConfirmEnv,
 			"DataDirEnv":      pago.DataDirEnv,
+			"GitCommandEnv":   pago.GitCommandEnv,
 			"GitEmailEnv":     pago.GitEmailEnv,
 			"GitEnv":          pago.GitEnv,
 			"GitNameEnv":      pago.GitNameEnv,
