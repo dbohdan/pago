@@ -22,7 +22,7 @@ const (
 	DirPerms         = 0o700
 	FilePerms        = 0o600
 	MaxStepsPerChar  = 1000 // Maximum attempts to find a random character matching apattern.
-	NameInvalidChars = `[\n]`
+	NameInvalidChars = `[\p{Cc}]`
 	StorePath        = "store"
 	Version          = "0.23.0"
 	WaitForSocket    = 3 * time.Second
