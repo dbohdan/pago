@@ -376,6 +376,21 @@ func isTOML(content string) bool {
 	return strings.HasPrefix(content, "# TOML")
 }
 
+// validateEntryContent rejects content marked as TOML that does not parse.
+// Non-TOML entries are accepted unchanged.
+func validateEntryContent(content string) error {
+	if !isTOML(content) {
+		return nil
+	}
+
+	var data map[string]any
+	if _, err := toml.Decode(content, &data); err != nil {
+		return fmt.Errorf("invalid TOML: %w", err)
+	}
+
+	return nil
+}
+
 // generateOTP generates a one-time password from an otpauth URI.
 func generateOTP(otpURL string) (string, error) {
 	otpKey, err := otp.NewKeyFromURL(otpURL)
@@ -761,6 +776,10 @@ func (cmd *EditCmd) Run(config *Config) error {
 		fmt.Fprintln(os.Stderr, "No changes made")
 
 		return nil
+	}
+
+	if err := validateEntryContent(newContent); err != nil {
+		return fmt.Errorf("entry was not saved: %w", err)
 	}
 
 	// Save the edited entry.
