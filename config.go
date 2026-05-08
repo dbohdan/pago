@@ -31,6 +31,9 @@ const (
 	ExitError        = 1
 	ExitBadUsage     = 2
 	ExitMemlockError = 3
+	ExitNotFound     = 4
+	ExitDecryption   = 5
+	ExitAgent        = 6
 
 	// Configurable defaults.
 

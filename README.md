@@ -502,6 +502,20 @@ cap_mkdb /etc/login.conf
 
 3. Restart your user session.
 
+### Exit codes
+
+pago uses these exit codes so scripts and agents can branch on the failure mode without parsing English error strings:
+
+| Code | Name             | Meaning                                    |
+|------|------------------|--------------------------------------------|
+| 0    | Success          |                                            |
+| 1    | Generic error    | Anything not covered below                 |
+| 2    | Bad usage        | Invalid CLI arguments                      |
+| 3    | Memlock error    | The agent could not lock its memory        |
+| 4    | Not found        | The entry does not exist                   |
+| 5    | Decryption error | Wrong master password or no matching identity |
+| 6    | Agent error      | The agent could not be reached or started  |
+
 ### Environment variables
 
 - `PAGO_AGENT`:

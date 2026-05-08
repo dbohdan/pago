@@ -365,13 +365,13 @@ func decryptEntry(agentExecutable string, agentExpire time.Duration, agentMemloc
 		}
 
 		if err := agent.StartProcess(agentExecutable, agentExpire, agentMemlock, agentSocket, identitiesText); err != nil {
-			return "", fmt.Errorf("failed to start agent: %w", err)
+			return "", fmt.Errorf("%w: %w", pago.ErrAgent, err)
 		}
 	}
 
 	content, err := agent.Decrypt(agentSocket, encryptedData)
 	if err != nil {
-		return "", fmt.Errorf("failed to decrypt entry: %w", err)
+		return "", fmt.Errorf("%w: %w", pago.ErrDecryption, err)
 	}
 
 	return string(content), nil
@@ -558,7 +558,7 @@ func (cmd *ClipCmd) Run(config *Config) error {
 	}
 
 	if !entryExists(config.Store, name) {
-		return fmt.Errorf("entry doesn't exist: %v", name)
+		return fmt.Errorf("%w: %v", pago.ErrEntryNotFound, name)
 	}
 
 	password, err := getPassword(
@@ -616,7 +616,7 @@ func (cmd *CopyCmd) Run(config *Config) error {
 	}
 
 	if !entryExists(config.Store, cmd.OldName) {
-		return fmt.Errorf("entry doesn't exist: %v", cmd.OldName)
+		return fmt.Errorf("%w: %v", pago.ErrEntryNotFound, cmd.OldName)
 	}
 
 	if !cmd.Force && entryExists(config.Store, cmd.NewName) {
@@ -702,7 +702,7 @@ func (cmd *DeleteCmd) Run(config *Config) error {
 	}
 
 	if !entryExists(config.Store, name) {
-		return fmt.Errorf("entry doesn't exist: %v", name)
+		return fmt.Errorf("%w: %v", pago.ErrEntryNotFound, name)
 	}
 
 	if !cmd.Force {
@@ -795,7 +795,7 @@ func (cmd *EditCmd) Run(config *Config) error {
 			return fmt.Errorf("failed to decrypt entry: %w", err)
 		}
 	} else if !cmd.Force {
-		return fmt.Errorf("entry doesn't exist: %v", name)
+		return fmt.Errorf("%w: %v", pago.ErrEntryNotFound, name)
 	}
 
 	newContent, err := editor.Edit(name, content, cmd.Save, cmd.Mouse)
@@ -1240,7 +1240,7 @@ func (cmd *RenameCmd) Run(config *Config) error {
 	}
 
 	if !entryExists(config.Store, cmd.OldName) {
-		return fmt.Errorf("entry doesn't exist: %v", cmd.OldName)
+		return fmt.Errorf("%w: %v", pago.ErrEntryNotFound, cmd.OldName)
 	}
 
 	if entryExists(config.Store, cmd.NewName) {
@@ -1428,7 +1428,7 @@ func (cmd *ShowCmd) Run(config *Config) error {
 	}
 
 	if !entryExists(config.Store, name) {
-		return fmt.Errorf("entry doesn't exist: %v", cmd.Name)
+		return fmt.Errorf("%w: %v", pago.ErrEntryNotFound, cmd.Name)
 	}
 
 	var output string
@@ -1670,6 +1670,21 @@ func main() {
 	}
 
 	if err := ctx.Run(config); err != nil {
-		pago.ExitWithError("%v", err)
+		pago.PrintError("%v", err)
+		os.Exit(exitCodeFor(err))
+	}
+}
+
+// exitCodeFor inspects an error chain and returns a matching exit code.
+func exitCodeFor(err error) int {
+	switch {
+	case errors.Is(err, pago.ErrEntryNotFound):
+		return pago.ExitNotFound
+	case errors.Is(err, pago.ErrAgent):
+		return pago.ExitAgent
+	case errors.Is(err, pago.ErrDecryption):
+		return pago.ExitDecryption
+	default:
+		return pago.ExitError
 	}
 }

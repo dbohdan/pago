@@ -115,11 +115,19 @@ func WrapDecrypt(r io.Reader, identities ...age.Identity) (io.Reader, error) {
 	armored := string(buffer[:n]) == armor.Header
 	r = io.MultiReader(bytes.NewReader(buffer[:n]), r)
 
+	var reader io.Reader
+
 	if armored {
-		return age.Decrypt(armor.NewReader(r), identities...)
+		reader, err = age.Decrypt(armor.NewReader(r), identities...)
+	} else {
+		reader, err = age.Decrypt(r, identities...)
 	}
 
-	return age.Decrypt(r, identities...)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %w", pago.ErrDecryption, err)
+	}
+
+	return reader, nil
 }
 
 // ParseIdentities parses a string containing age identities and/or SSH private keys.

@@ -18,6 +18,15 @@ import (
 
 const waitStep = 50 * time.Millisecond
 
+// Sentinel errors signal categories of failure to the top-level error handler.
+// Wrapping with %w keeps the original message; main inspects via errors.Is to
+// pick a distinct exit code.
+var (
+	ErrEntryNotFound = errors.New("entry not found")
+	ErrDecryption    = errors.New("decryption failed")
+	ErrAgent         = errors.New("agent error")
+)
+
 // Duration is a time.Duration that accepts a bare non-negative integer as a
 // number of seconds when parsed from text. Any other input is parsed by
 // time.ParseDuration. This lets the user write "30" (= 30s) or "1m30s"

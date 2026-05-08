@@ -122,6 +122,62 @@ func TestVersion(t *testing.T) {
 	}
 }
 
+// requireExitCode runs the test and checks that the process exited with code.
+func requireExitCode(t *testing.T, want int, err error) {
+	t.Helper()
+
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != want {
+		t.Errorf("expected exit code %d, got %v", want, err)
+	}
+}
+
+func TestExitCodeNotFound(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		_, _, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "foo", "--random",
+		)
+		if err != nil {
+			return "", err
+		}
+
+		_, _, runErr := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"delete", "nonexistent", "--force",
+		)
+		requireExitCode(t, 4, runErr)
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("setup failed: %v", err)
+	}
+}
+
+func TestExitCodeDecryption(t *testing.T) {
+	_, err := withPagoDir(func(dataDir string) (string, error) {
+		_, _, err := runCommandEnv(
+			[]string{"PAGO_DIR=" + dataDir},
+			"add", "foo", "--random",
+		)
+		if err != nil {
+			return "", err
+		}
+
+		// Wrong master password fed via stdin (not a TTY).
+		cmd := exec.Command(commandPago, "--dir", dataDir, "--socket", "", "show", "foo")
+		cmd.Stdin = strings.NewReader("wrong-password\n")
+		runErr := cmd.Run()
+		requireExitCode(t, 5, runErr)
+
+		return "", nil
+	})
+	if err != nil {
+		t.Errorf("setup failed: %v", err)
+	}
+}
+
 func TestBadUsage(t *testing.T) {
 	_, _, err := runCommand("boo")
 
