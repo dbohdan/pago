@@ -6,15 +6,20 @@
 # Command groups.
 set -l add_commands a add
 set -l clip_commands c clip
+set -l copy_commands cp copy duplicate
 set -l delete_commands d del delete rm
 set -l edit_commands e edit
 set -l find_commands f find
 set -l generate_commands g gen generate
+set -l git_commands git
+set -l log_commands log
 set -l pick_commands p pick
+set -l rekey_commands rekey
 set -l rename_commands mv r rename
+set -l rewrap_commands rewrap
 set -l show_commands s show
 set -l version_commands v ver version
-set -g __pago_cmd_groups $add_commands $clip_commands $delete_commands $edit_commands $find_commands $generate_commands $pick_commands $rename_commands $show_commands $version_commands
+set -g __pago_cmd_groups $add_commands $clip_commands $copy_commands $delete_commands $edit_commands $find_commands $generate_commands $git_commands $log_commands $pick_commands $rekey_commands $rename_commands $rewrap_commands $show_commands $version_commands
 
 function __pago_no_subcommand
     not __fish_seen_subcommand_from $__pago_cmd_groups
@@ -39,6 +44,7 @@ complete -c pago -l git-email -d "Email for Git commits" -r
 complete -c pago -l git-name -d "Name for Git commits" -r
 complete -c pago -l memlock -d "Lock agent memory"
 complete -c pago -l no-memlock -d "Don't lock agent memory"
+complete -c pago -l passphrase-fd -d "Read the master password from this file descriptor instead of prompting" -r
 complete -c pago -s s -l socket -d "Agent socket path" -r
 complete -c pago -s v -l verbose -d "Print debugging information"
 
@@ -52,6 +58,7 @@ for cmd in $add_commands
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s i -l input -d "Input the password manually"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s m -l multiline -d "Read password from stdin until EOF"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s r -l random -d "Generate a random password"
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -s t -l trim -d "Strip trailing newline characters from the password"
 end
 
 # `clip` command options.
@@ -61,6 +68,13 @@ for cmd in $clip_commands
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s k -l key -d "Retrieve a key from a TOML entry" -r
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s p -l pick -d "Pick entry using fuzzy finder"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s t -l timeout -d "Clipboard timeout" -r
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -a "(pago find)"
+end
+
+# `copy` command options.
+complete -c pago -n __pago_no_subcommand -a copy -d "Duplicate a password entry"
+for cmd in $copy_commands
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -s f -l force -d "Overwrite existing destination entry"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -a "(pago find)"
 end
 
@@ -86,6 +100,9 @@ end
 
 # `find` command options.
 complete -c pago -n __pago_no_subcommand -a find -d "Find entry by name regex"
+for cmd in $find_commands
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -s j -l json -d "Output as a JSON array"
+end
 
 # `generate` command options.
 complete -c pago -n __pago_no_subcommand -a generate -d "Generate and print password"
@@ -94,9 +111,22 @@ for cmd in $generate_commands
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s p -l pattern -d "Password pattern" -r
 end
 
+# `git` command options.
+complete -c pago -n __pago_no_subcommand -a git -d "Run Git inside the store directory"
+for cmd in $git_commands
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -l git-command -d "Git command to invoke" -r
+end
+
+# `log` command options.
+complete -c pago -n __pago_no_subcommand -a log -d "Show recent commits in the store's Git history"
+for cmd in $log_commands
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -s n -l max-count -d "Maximum number of commits to show" -r
+end
+
 # `pick` command options.
 complete -c pago -n __pago_no_subcommand -a pick -d "Show password for a picked entry"
 for cmd in $pick_commands
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -s j -l json -d "Output result as JSON"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s k -l key -d "Retrieve a key from a TOML entry" -r
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -a "(pago find)"
 end
@@ -110,6 +140,7 @@ end
 # `show` command options.
 complete -c pago -n __pago_no_subcommand -a show -d "Show password for entry or list entries"
 for cmd in $show_commands
+    complete -c pago -n "__fish_seen_subcommand_from $cmd" -s j -l json -d "Output result as JSON"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s k -l key -d "Retrieve a key from a TOML entry" -r
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s K -l keys -d "List keys in a TOML entry"
     complete -c pago -n "__fish_seen_subcommand_from $cmd" -s p -l pick -d "Pick entry using fuzzy finder"
