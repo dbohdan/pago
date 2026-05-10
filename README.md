@@ -42,11 +42,11 @@ It has the following differences:
 
 An attacker who obtains your pago directory but not the master password should be unable to access the stored passwords except by [brute-forcing](https://en.wikipedia.org/wiki/Brute-force_attack) the master password.
 
-pago does not protect against an attacker who runs code as your user.
+pago does not try to defend against an attacker who runs code as your user.
 While the agent is running, that attacker can simply invoke pago to read each entry.
 Without the agent, the attacker can wait for you to enter the master password and capture it.
 
-pago does try to protect against co-resident users on a shared system.
+pago tries to defend against other users on a shared system.
 The data directory, the agent socket, and the directory that contains the socket are created with permissions that deny access to anyone but you.
 
 ## Motivation and alternatives
@@ -150,8 +150,8 @@ cat ~/.ssh/id_ed25519 >> "/dev/shm/pago-$USER-temp/identities"
 age -a -e -p -o ~/.local/share/pago/identities "/dev/shm/pago-$USER-temp/identities"
 ```
 
-If the agent is running, the next `pago rekey` or `pago rewrap` will push the updated identities to it.
-You can also reload the agent explicitly with `pago agent restart`.
+If the agent is running, `pago rekey` or `pago rewrap` will push the updated identities to it.
+You can also reload the identities by restarting the agent with `pago agent restart`.
 
 ### Add passwords
 
@@ -268,7 +268,8 @@ pago cp foo/bar foo/baz
 pago cp -f foo/bar foo/baz
 ```
 
-The destination is encrypted with the current recipients, so this is also a way to re-encrypt a single entry without rekeying the whole store.
+The destination is encrypted with the current recipients,
+so this is also a way to re-encrypt a single entry without rekeying the entire store.
 
 ### TOML entries
 
@@ -351,19 +352,19 @@ pago cannot retrieve tables directly, but it can traverse them to access nested 
 `find` and `show` accept `--json` for machine-readable output:
 
 ```shell
-# Names of all entries as a JSON array.
+# List the names of all entries as a JSON array.
 pago find --json
 # => ["bar","baz","foo"]
 
-# Keys of a TOML entry.
+# List the keys of a TOML entry.
 pago show --json -K services/my-api
 # => ["numbers","password","token","url","user"]
 
-# Value of a key, JSON-encoded.
+# Show the value of a key as JSON.
 pago show --json -k numbers services/my-api
 # => [1,1,2,3,5]
 
-# A non-TOML entry comes back as a JSON string.
+# A non-TOML entry is output as a JSON string.
 pago show --json secret
 # => "hunter2"
 ```
@@ -372,7 +373,7 @@ pago show --json secret
 
 pago can generate [time-based one-time passwords (TOTP)](https://en.wikipedia.org/wiki/Time-based_one-time_password) from a [TOML entry](#toml-entries).
 To use this feature, store the `otpauth://` URI in any string-valued key.
-pago generates a code whenever the resolved value starts with `otpauth://`, regardless of the key name.
+pago generates a code whenever the resolved value starts with `otpauth://`.
 The entry must start with `# TOML`.
 
 ```shell
@@ -406,7 +407,7 @@ pago git push -u origin main
 
 The command pago invokes is configurable with `--git-command`/`PAGO_GIT_COMMAND` (default: `git`).
 
-A self-contained one-line history view is also available without invoking git:
+A Git history view command is built in and doesn't require invoking external `git`:
 
 ```shell
 # Show the latest 10 commits.
@@ -416,7 +417,8 @@ pago log
 pago log -n 5
 ```
 
-Each line has the form `YYYY-MM-DD HH:MM ZZ "file" ["file" ...] message` with the changed file names in `%q` quoting.
+Each line has the form `YYYY-MM-DD HH:MM +ZZ "filename1.age" ["filename2.age" ...] subject`.
+The filenames are quoted with [Go's `%q`](https://pkg.go.dev/fmt).
 
 ### Agent
 
@@ -504,17 +506,17 @@ cap_mkdb /etc/login.conf
 
 ### Exit codes
 
-pago uses these exit codes so scripts and agents can branch on the failure mode without parsing English error strings:
+pago uses these exit codes so scripts and agents can branch on the failure mode without parsing the error message:
 
-| Code | Name             | Meaning                                    |
-|------|------------------|--------------------------------------------|
-| 0    | Success          |                                            |
-| 1    | Generic error    | Anything not covered below                 |
-| 2    | Bad usage        | Invalid CLI arguments                      |
-| 3    | Memlock error    | The agent could not lock its memory        |
-| 4    | Not found        | The entry does not exist                   |
+| Code | Name             | Meaning                                       |
+|------|------------------|-----------------------------------------------|
+| 0    | Success          |                                               |
+| 1    | Generic error    | Anything not covered below                    |
+| 2    | Bad usage        | Invalid CLI arguments                         |
+| 3    | Memlock error    | The agent could not lock its memory           |
+| 4    | Not found        | The entry does not exist                      |
 | 5    | Decryption error | Wrong master password or no matching identity |
-| 6    | Agent error      | The agent could not be reached or started  |
+| 6    | Agent error      | The agent could not be reached or started     |
 
 ### Environment variables
 
@@ -577,7 +579,7 @@ pago uses these exit codes so scripts and agents can branch on the failure mode 
       - `${TMPDIR:-/tmp}/pago-${username}@${hostname}/socket`
 - `PAGO_TIMEOUT`:
   The default timeout to clear the clipboard.
-  Accepts a [Go duration string](https://pkg.go.dev/time#ParseDuration) (for example, `45s`) or a bare integer interpreted as seconds.
+  Accepts a [Go duration string](https://pkg.go.dev/time#ParseDuration) (for example, `20s`) or a bare integer interpreted as seconds.
   Default: `30` (seconds).
 
 ### Interactive editor
