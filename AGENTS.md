@@ -10,7 +10,7 @@ A long-running agent caches identities so the master password is entered once pe
 `cmd/pago-agent` is the agent process.
 Shared packages are `pago` (root, utility code), `crypto`, `agent`, `editor`, `git`, `input`, and `tree`.
 End-to-end tests live in `test/` and drive the built binaries through expect-style consoles.
-The project requires Go 1.24 or later.
+The project requires Go 1.25 or later.
 
 ## Toolchain
 

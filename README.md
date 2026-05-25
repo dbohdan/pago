@@ -77,7 +77,7 @@ It has been ported from POSIX shell to Tcl to Go and from [GPG](https://gnupg.or
 
 ## Installation
 
-You will need Go 1.24 or later to install pago.
+You will need Go 1.25 or later to install pago.
 Once Go is installed on your system, run the following commands:
 
 ```shell

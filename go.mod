@@ -1,6 +1,6 @@
 module dbohdan.com/pago
 
-go 1.24
+go 1.25.0
 
 require (
 	filippo.io/age v1.2.1
