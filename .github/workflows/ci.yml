@@ -9,13 +9,16 @@ env:
 jobs:
   bsd:
     runs-on: ${{ matrix.os.host }}
+    defaults:
+      run:
+        shell: 'cpa.sh {0}'
     strategy:
       fail-fast: false
       matrix:
         os:
           - name: freebsd
             architecture: x86-64
-            version: '14.3'
+            version: '15.0'
             host: ubuntu-latest
 
           - name: netbsd
@@ -25,40 +28,41 @@ jobs:
 
           - name: openbsd
             architecture: x86-64
-            version: '7.7'
+            version: '7.8'
             host: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Run CI script on ${{ matrix.os.name }}
-        uses: cross-platform-actions/action@v0.29.0
+        uses: cross-platform-actions/action@v1.1.0
         with:
           operating_system: ${{ matrix.os.name }}
           architecture: ${{ matrix.os.architecture }}
           version: ${{ matrix.os.version }}
-          shell: bash
-          run: |
-            case "$(uname)" in
-              FreeBSD)
-                sudo pkg install -y go
-                ;;
-              NetBSD)
-                sudo pkgin -y install go
 
-                for bin in /usr/pkg/bin/go1*; do
-                  src=$bin
-                done
-                sudo ln -s "$src" /usr/pkg/bin/go
-                ;;
-              OpenBSD)
-                sudo pkg_add -I go
-                ;;
-            esac
-            PATH=$(go env GOPATH)/bin:$PATH
+      - name: Build and test
+        run: |
+          case "$(uname)" in
+            FreeBSD)
+              sudo pkg install -y go
+              ;;
+            NetBSD)
+              sudo pkgin -y install go
 
-            go install 'github.com/go-task/task/v3/cmd/task@${{ env.TASK_VERSION }}'
-            task test
+              for bin in /usr/pkg/bin/go1*; do
+                src=$bin
+              done
+              sudo ln -s "$src" /usr/pkg/bin/go
+              ;;
+            OpenBSD)
+              sudo pkg_add -I go
+              ;;
+          esac
+          PATH=$(go env GOPATH)/bin:$PATH
+
+          go install 'github.com/go-task/task/v3/cmd/task@${{ env.TASK_VERSION }}'
+          task test
 
   linux:
     runs-on: ubuntu-latest
