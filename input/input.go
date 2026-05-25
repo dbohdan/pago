@@ -142,6 +142,8 @@ func AskYesNo(prompt string) (bool, error) {
 		}
 
 		answer = strings.ToLower(string(input[0]))
+
+		fmt.Fprintf(os.Stderr, "%v", answer)
 	}
 
 	return answer == "y", nil
