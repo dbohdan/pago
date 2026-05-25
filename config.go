@@ -105,6 +105,7 @@ func DefaultSocket() (string, error) {
 	// Find the first candidate that exists.
 	var runtimeDir string
 
+	//nolint:gosec
 	for _, candidateDir := range candidates {
 		if _, err := os.Stat(candidateDir); err == nil {
 			runtimeDir = candidateDir

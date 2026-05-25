@@ -20,6 +20,10 @@ const (
 	filePerms        = 0o644
 	projectName      = "pago"
 	sshKey           = ".ssh/git"
+
+	archArm64 = "arm64"
+	archAmd64 = "amd64"
+	osLinux   = "linux"
 )
 
 var (
@@ -54,15 +58,15 @@ func buildAll() error {
 	}
 
 	targets := []BuildTarget{
-		{"android", "arm64"},
-		{"darwin", "amd64"},
-		{"darwin", "arm64"},
-		{"freebsd", "amd64"},
-		{"linux", "amd64"},
-		{"linux", "arm64"},
-		{"linux", "riscv64"},
-		{"netbsd", "amd64"},
-		{"openbsd", "amd64"},
+		{"android", archArm64},
+		{"darwin", archAmd64},
+		{"darwin", archArm64},
+		{"freebsd", archAmd64},
+		{osLinux, archAmd64},
+		{osLinux, archArm64},
+		{osLinux, "riscv64"},
+		{"netbsd", archAmd64},
+		{"openbsd", archAmd64},
 	}
 
 	for i, target := range targets {
@@ -251,7 +255,6 @@ func signFile(filePath string) error {
 
 	fmt.Printf("Signing %s\n", filePath)
 
-	//nolint:gosec
 	cmd := exec.Command("ssh-keygen", "-Y", "sign", "-n", "file", "-f", filepath.Join(homeDir, sshKey), filePath)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout

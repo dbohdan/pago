@@ -435,7 +435,7 @@ func marshalJSON(v any) (string, error) {
 // It does so by quoting each key with %q and joining them with periods.
 // For example: []string{"a", "b"} becomes "a"."b".
 func quoteKeyPath(keys []string) string {
-	quoted := []string{}
+	quoted := make([]string, 0, len(keys))
 
 	for _, key := range keys {
 		quoted = append(quoted, fmt.Sprintf("%q", key))
@@ -1579,6 +1579,7 @@ func generatePassword(pattern string, length int) (string, error) {
 
 // pathExists checks if a file or directory exists at the given path.
 func pathExists(path string) bool {
+	//nolint:gosec
 	_, err := os.Stat(path)
 
 	return !errors.Is(err, os.ErrNotExist)
