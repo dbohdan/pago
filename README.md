@@ -54,7 +54,7 @@ The data directory, the agent socket, and the directory that contains the socket
 My primary password manager is [KeePassXC](https://github.com/keepassxreboot/keepassxc).
 I use a secondary password manager to access a subset of secrets in cron jobs and scripts and on headless remote systems.
 
-I used [`pass`](https://www.passwordstore.org/) for this purpose for a while.
+I used [`pass`](https://www.passwordstore.org/) for this purpose for a time.
 While I appreciated the design of `pass` and found it pleasant to use, I did not like setting up GPG on a new system.
 I searched for a `pass` replacement based on age because I had already replaced GPG with age for encrypting files.
 The following is a late-2024 shortlist of password managers I compiled before deciding to develop pago.
@@ -276,7 +276,7 @@ so this is also a way to re-encrypt a single entry without rekeying the entire s
 pago can store and retrieve structured data in the [TOML](https://toml.io/) format.
 This is useful for storing multiple related values in a single entry, such as API keys, usernames, and URLs.
 
-To create a TOML entry, use `pago add --multiline` and provide TOML content on standard input.
+To create a TOML entry, use `pago add --multiline` and provide TOML content on standard input or use `pago edit`.
 The content must start with the string `# TOML`.
 
 ```shell
