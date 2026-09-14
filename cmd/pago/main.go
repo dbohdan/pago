@@ -311,9 +311,15 @@ type ClipCmd struct {
 }
 
 // copyToClipboard executes a command to copy text to the system clipboard.
+var clipboardWriteAll = clipboard.WriteAll
+
 func copyToClipboard(command string, text string) error {
 	if command == "" {
-		return fmt.Errorf("failed to write to clipboard: %w", clipboard.WriteAll(text))
+		if err := clipboardWriteAll(text); err != nil {
+			return fmt.Errorf("failed to write to clipboard: %w", err)
+		}
+
+		return nil
 	}
 
 	args, err := shlex.Split(command, true)

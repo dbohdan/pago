@@ -6,9 +6,12 @@
 package main
 
 import (
+	"errors"
 	"strings"
 	"testing"
 )
+
+var errClipboardTest = errors.New("test clipboard error")
 
 func TestValidateEntryContent(t *testing.T) {
 	t.Parallel()
@@ -39,5 +42,23 @@ func TestValidateEntryContent(t *testing.T) {
 				t.Errorf("expected error mentioning %q, got %q", "invalid TOML", err.Error())
 			}
 		})
+	}
+}
+
+func TestCopyToClipboard(t *testing.T) {
+	t.Parallel()
+
+	clipboardWriteAll = func(string) error { return nil }
+	if err := copyToClipboard("", "hunter2"); err != nil {
+		t.Errorf("successful WriteAll returned error: %v", err)
+	}
+
+	clipboardWriteAll = func(string) error { return errClipboardTest }
+	if err := copyToClipboard("", "hunter2"); !errors.Is(err, errClipboardTest) {
+		t.Errorf("failed WriteAll: err = %v, want wrapped errClipboardTest", err)
+	}
+
+	if err := copyToClipboard("cat", "hunter2"); err != nil {
+		t.Errorf("clipboard command path returned error: %v", err)
 	}
 }
